@@ -1,0 +1,18 @@
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Editor
+.DS_Store
+
+# Go build artifacts
+**/adapter.db
+**/*.log
+**/bin/
+
+# SQLite
+backend/adapter/adapter.db
+
+# Docker
+*.env
+

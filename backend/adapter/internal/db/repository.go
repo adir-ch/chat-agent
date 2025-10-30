@@ -1,0 +1,84 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"time"
+
+	"chat-agent/backend/adapter/internal/models"
+)
+
+type Repository struct {
+	DB *sql.DB
+}
+
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{DB: db}
+}
+
+func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*models.AgentProfile, error) {
+	var profile models.AgentProfile
+	profile.AgentID = agentID
+
+	err := r.DB.QueryRowContext(ctx,
+		`SELECT first_name, last_name, agency, area_json FROM user_info WHERE agent_id = ?`, agentID).
+		Scan(&profile.FirstName, &profile.LastName, &profile.Agency, newJSONScanner(&profile.Areas))
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.DB.QueryContext(ctx,
+		`SELECT address, suburb, postcode, status, sold_date FROM property_listings WHERE agent_id = ?`,
+		agentID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			listing models.Listing
+			soldRaw sql.NullString
+		)
+
+		if err := rows.Scan(&listing.Address, &listing.Suburb, &listing.Postcode, &listing.Status, &soldRaw); err != nil {
+			return nil, err
+		}
+		if soldRaw.Valid {
+			if parsed, err := time.Parse(time.RFC3339, soldRaw.String); err == nil {
+				listing.SoldDate = &parsed
+			}
+		}
+
+		profile.Listings = append(profile.Listings, listing)
+	}
+
+	return &profile, rows.Err()
+}
+
+func (r *Repository) SaveConversation(ctx context.Context, conv *models.Conversation) error {
+	_, err := r.DB.ExecContext(ctx,
+		`INSERT INTO llm_conversations (agent_id, query, response) VALUES (?, ?, ?)`,
+		conv.AgentID, conv.Query, conv.Response,
+	)
+	return err
+}
+
+func newJSONScanner(target any) func(src any) error {
+	return func(src any) error {
+		if src == nil {
+			return nil
+		}
+		switch data := src.(type) {
+		case string:
+			return json.Unmarshal([]byte(data), target)
+		case []byte:
+			return json.Unmarshal(data, target)
+		default:
+			return nil
+		}
+	}
+}
+
