@@ -13,10 +13,11 @@ import (
 	"chat-agent/backend/search/internal/api"
 	"chat-agent/backend/search/internal/config"
 	"chat-agent/backend/search/internal/search"
+	"chat-agent/backend/search/internal/version"
 )
 
 func main() {
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := zerolog.New(os.Stdout).With().Timestamp().Str("version", version.BuildVersion).Logger()
 
 	cfg := config.Load()
 

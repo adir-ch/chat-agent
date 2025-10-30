@@ -36,6 +36,8 @@ go mod tidy
 go run ./cmd/adapter
 ```
 
+> Tip: `make -C backend build` compiles both services with an embedded Git version string (via `git describe`).
+
 Environment variables:
 
 - `ADAPTER_LISTEN_ADDR` (default `:8080`)
