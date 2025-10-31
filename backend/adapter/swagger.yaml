@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: Chat Adapter API
+  version: "1.0.0"
+  description: >
+    HTTP interface for the chat adapter service. The service enriches agent
+    prompts, invokes the Ollama model, and persists conversation history.
+servers:
+  - url: http://localhost:8080
+    description: Default local development address
+paths:
+  /api/chat:
+    post:
+      summary: Submit a chat message
+      description: >
+        Sends the agent's latest message to the adapter so it can compose a
+        context-aware prompt, call the model, and return the assistant reply.
+      operationId: createChatCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              sample:
+                summary: Basic request
+                value:
+                  agentId: agent-123
+                  message: "Show me recent sales in the Inner West."
+      responses:
+        '200':
+          description: Assistant reply and optional context summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                sample:
+                  summary: Successful response
+                  value:
+                    message:
+                      id: "20241030161000"
+                      role: assistant
+                      content: "Here are the recent Inner West sales..."
+                      createdAt: "2024-10-30T16:10:00Z"
+                    contextSummary: "Used agent profile and 3 property matches."
+        '400':
+          description: Malformed JSON payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidPayload:
+                  value:
+                    error: invalid payload
+        '404':
+          description: Agent profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missingProfile:
+                  value:
+                    error: profile not found
+        '502':
+          description: Downstream model or tool error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                modelError:
+                  value:
+                    error: failed to contact model
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - agentId
+        - message
+      properties:
+        agentId:
+          type: string
+          description: Unique identifier of the requesting agent
+        message:
+          type: string
+          description: Free-form message from the agent
+    ChatResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          $ref: '#/components/schemas/ResponseMessage'
+        contextSummary:
+          type: string
+          description: Optional summary of context sources used to craft the reply
+    ResponseMessage:
+      type: object
+      required:
+        - id
+        - role
+        - content
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Identifier generated for the message
+        role:
+          type: string
+          enum: [assistant]
+          description: Role of the returned message
+        content:
+          type: string
+          description: Natural language reply from the assistant
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp (UTC) when the message was generated
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable description of the failure

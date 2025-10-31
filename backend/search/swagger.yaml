@@ -1,0 +1,98 @@
+openapi: 3.0.3
+info:
+  title: Search Service API
+  version: "1.0.0"
+  description: >
+    HTTP facade over Elasticsearch that provides quick lookups for people and
+    property records used by the chat adapter.
+servers:
+  - url: http://localhost:8090
+    description: Default local development address
+paths:
+  /search/people:
+    get:
+      summary: Search people records
+      operationId: searchPeople
+      parameters:
+        - name: q
+          in: query
+          description: Free-text query to match against indexed people fields
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: People documents that matched the search query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResults'
+              examples:
+                sample:
+                  summary: Example response
+                  value:
+                    - id: "person-123"
+                      name: "Jamie Agent"
+                      phone: "+61 400 000 000"
+                      suburb: "Newtown"
+        '502':
+          description: Elasticsearch returned an error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /search/property:
+    get:
+      summary: Search property records
+      operationId: searchProperty
+      parameters:
+        - name: q
+          in: query
+          description: Free-text query to match against indexed property fields
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Property documents that matched the search query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResults'
+              examples:
+                sample:
+                  summary: Example response
+                  value:
+                    - id: "property-456"
+                      address: "12 Smith St"
+                      suburb: "Marrickville"
+                      bedrooms: 3
+        '502':
+          description: Elasticsearch returned an error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    SearchResults:
+      type: array
+      description: Flattened documents returned from Elasticsearch
+      items:
+        type: object
+        description: >
+          Arbitrary key/value pairs representing a document from Elasticsearch.
+          Always includes an `id` field alongside the document source fields.
+        properties:
+          id:
+            type: string
+            description: Identifier of the document
+        additionalProperties: true
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable description of the failure
