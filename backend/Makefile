@@ -11,7 +11,7 @@ SEARCH_BIN := $(SEARCH_DIR)/bin/search
 ADAPTER_LDFLAGS := -ldflags "-X chat-agent/backend/adapter/internal/version.BuildVersion=$(GIT_VERSION)"
 SEARCH_LDFLAGS := -ldflags "-X chat-agent/backend/search/internal/version.BuildVersion=$(GIT_VERSION)"
 
-.PHONY: all build adapter search clean
+.PHONY: all build adapter search clean test test-search test-adapter
 
 all: build
 
@@ -31,4 +31,14 @@ $(SEARCH_BIN):
 
 clean:
 	rm -rf $(ADAPTER_DIR)/bin $(SEARCH_DIR)/bin
+
+test: test-search test-adapter
+
+test-search:
+	@echo "Running search service tests..."
+	@bash tests/search-test.sh
+
+test-adapter:
+	@echo "Running adapter service tests..."
+	@bash tests/adapter-test.sh
 
