@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -18,11 +21,69 @@ import (
 
 var MockDB []search.ElasticDataRecord
 
+// LoadMockDB loads elastic-data.json into MockDB
+func LoadMockDB() ([]search.ElasticDataRecord, error) {
+	// Get the directory where the executable is located
+	execPath, err := os.Executable()
+	if err != nil {
+		// Fallback to current working directory if we can't get executable path
+		cwd, _ := os.Getwd()
+		execPath = cwd
+	}
+	execDir := filepath.Dir(execPath)
+
+	// Try multiple possible paths
+	paths := []string{
+		// Same directory as executable (for compiled binary)
+		filepath.Join(execDir, "elastic-data.json"),
+		// Relative to executable directory (cmd/search/)
+		filepath.Join(execDir, "cmd", "search", "elastic-data.json"),
+		// Current working directory
+		"elastic-data.json",
+		filepath.Join(".", "elastic-data.json"),
+		// Relative to working directory
+		filepath.Join("cmd", "search", "elastic-data.json"),
+		filepath.Join("backend", "search", "cmd", "search", "elastic-data.json"),
+	}
+
+	// Add paths relative to current working directory
+	if cwd, err := os.Getwd(); err == nil {
+		paths = append(paths,
+			filepath.Join(cwd, "elastic-data.json"),
+			filepath.Join(cwd, "cmd", "search", "elastic-data.json"),
+			filepath.Join(cwd, "backend", "search", "cmd", "search", "elastic-data.json"),
+		)
+	}
+
+	var data []search.ElasticDataRecord
+	var lastErr error
+
+	for _, path := range paths {
+		file, err := os.Open(path)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		decoder := json.NewDecoder(file)
+		if err := decoder.Decode(&data); err == nil {
+			file.Close()
+			return data, nil
+		}
+		file.Close()
+		lastErr = err
+	}
+
+	return data, fmt.Errorf("failed to load elastic-data.json from any of the attempted paths: %w", lastErr)
+}
+
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("version", version.BuildVersion).Logger()
 
 	// Load mock data
-	if MockDB, err := LoadMockDB(); err != nil {
+	var err error
+	MockDB, err = LoadMockDB()
+	if err != nil {
 		logger.Warn().Err(err).Msg("failed to load elastic-data.json, continuing without mock data")
 	} else {
 		logger.Info().Int("records", len(MockDB)).Msg("loaded mock data")
