@@ -9,6 +9,7 @@ frontend/dist/
 **/adapter.db
 **/*.log
 **/bin/
+**/main
 
 # SQLite
 backend/adapter/adapter.db
