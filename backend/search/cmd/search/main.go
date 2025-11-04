@@ -16,12 +16,23 @@ import (
 	"chat-agent/backend/search/internal/version"
 )
 
+var MockDB []search.ElasticDataRecord
+
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("version", version.BuildVersion).Logger()
 
+	// Load mock data
+	if MockDB, err := LoadMockDB(); err != nil {
+		logger.Warn().Err(err).Msg("failed to load elastic-data.json, continuing without mock data")
+	} else {
+		logger.Info().Int("records", len(MockDB)).Msg("loaded mock data")
+		// Set the mock data in the search package
+		search.SetMockDB(MockDB)
+	}
+
 	cfg := config.Load()
 
-	esClient, err := search.NewClient(cfg)
+	esClient, err := search.NewClient(cfg, logger.With().Str("component", "search").Logger())
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to init elasticsearch")
 	}
@@ -53,4 +64,3 @@ func main() {
 		logger.Error().Err(err).Msg("graceful shutdown failed")
 	}
 }
-
