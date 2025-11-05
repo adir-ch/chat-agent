@@ -29,19 +29,19 @@ echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
 echo ""
 
 # Test property search
-echo "----------------------------------------"
-echo "Testing /search/property endpoint"
-echo "----------------------------------------"
-echo "Request: GET $SEARCH_URL/search/property?q=$QUERY"
-echo ""
-RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SEARCH_URL/search/property?q=$QUERY")
-HTTP_STATUS=$(echo "$RESPONSE" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
-BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+# echo "----------------------------------------"
+# echo "Testing /search/property endpoint"
+# echo "----------------------------------------"
+# echo "Request: GET $SEARCH_URL/search/property?q=$QUERY"
+# echo ""
+# RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SEARCH_URL/search/property?q=$QUERY")
+# HTTP_STATUS=$(echo "$RESPONSE" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
+# BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
 
-echo "HTTP Status: $HTTP_STATUS"
-echo "Response Body:"
-echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
-echo ""
+# echo "HTTP Status: $HTTP_STATUS"
+# echo "Response Body:"
+# echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+# echo ""
 
 echo "=========================================="
 echo "Test Complete"

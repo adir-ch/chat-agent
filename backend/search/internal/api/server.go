@@ -50,4 +50,3 @@ func NewServer(cfg *config.Config, client *search.Client, logger zerolog.Logger)
 func (s *Server) Router() *chi.Mux {
 	return s.router
 }
-
