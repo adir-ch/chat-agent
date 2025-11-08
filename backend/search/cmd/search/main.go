@@ -21,7 +21,7 @@ func main() {
 
 	cfg := config.Load()
 
-	esClient, err := search.NewClient(cfg)
+	esClient, err := search.NewClient(cfg, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to init elasticsearch")
 	}
@@ -53,4 +53,3 @@ func main() {
 		logger.Error().Err(err).Msg("graceful shutdown failed")
 	}
 }
-
