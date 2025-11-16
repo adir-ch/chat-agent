@@ -94,6 +94,7 @@ func main() {
 	cfg := config.Load()
 
 	esClient, err := search.NewClient(cfg, logger.With().Str("component", "search").Logger())
+
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to init elasticsearch")
 	}

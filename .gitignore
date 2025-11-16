@@ -17,3 +17,5 @@ backend/adapter/adapter.db
 # Docker
 *.env
 
+# Python
+venv/

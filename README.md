@@ -69,6 +69,16 @@ Environment variables:
 
 Index sample documents in Elasticsearch before chatting, or hook into your existing data pipeline.
 
+## Prompt tunning agent (test/Agent)
+
+### Install 
+- `python3 -m venv venv`
+- `pip install -r requirements.txt`
+
+### Use 
+- `source venv/bin/activate`
+- `deactivate`
+
 ## Docker Compose (optional)
 
 See `docker-compose.yml` for a containerised setup that runs the frontend, both Go services, and Elasticsearch together. Update the Ollama endpoint to match your host environment.
