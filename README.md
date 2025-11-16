@@ -69,14 +69,18 @@ Environment variables:
 
 Index sample documents in Elasticsearch before chatting, or hook into your existing data pipeline.
 
-## Prompt tunning agent (test/Agent)
+## Prompt tuning agent
+
+Located in `backend/agent/`.
 
 ### Install 
+- `cd backend/agent`
 - `python3 -m venv venv`
 - `pip install -r requirements.txt`
 
 ### Use 
 - `source venv/bin/activate`
+- `python ai-agent.py`
 - `deactivate`
 
 ## Docker Compose (optional)
