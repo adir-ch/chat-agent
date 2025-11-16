@@ -6,17 +6,17 @@ from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 
 
-MODEL = "qwen3:0.6b"
+MODEL = "qwen3:0.6b" #"gemma3:1b" #
 FETCH_URL = "http://localhost:8090/search/people"
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Silence noisy HTTP logs
-for name in ["httpx", "httpcore", "urllib3"]:
-    logging.getLogger(name).setLevel(logging.WARNING)
+# # Silence noisy HTTP logs
+# for name in ["httpx", "httpcore", "urllib3"]:
+#     logging.getLogger(name).setLevel(logging.WARNING)
 
-# Optionally silence LangChain internals too
-for name in ["langchain", "langchain_core", "langchain_community", "langchain_ollama"]:
-    logging.getLogger(name).setLevel(logging.ERROR)
+# # Optionally silence LangChain internals too
+# for name in ["langchain", "langchain_core", "langchain_community", "langchain_ollama"]:
+#     logging.getLogger(name).setLevel(logging.ERROR)
 
 LOGGER = logging.getLogger(__name__)
 
