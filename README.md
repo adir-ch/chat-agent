@@ -13,7 +13,7 @@ Local-first assistant for real estate agents. The project consists of a Vite/Rea
 ## Project layout
 
 - `frontend`: React/Vite single-page chat client
-- `backend/adapter`: API adapter that enriches prompts with agent context, calls Ollama, and persists conversations
+- `backend/profile`: Profile service that enriches prompts with agent context, calls Ollama, and persists conversations
 - `backend/search`: Search facade over Elasticsearch for people and property lookups
 
 ## Quick start (local dev)
@@ -26,22 +26,22 @@ npm install
 npm run dev
 ```
 
-The dev server proxies `/api` requests to the adapter service running on `http://localhost:8080`.
+The dev server proxies `/api` requests to the profile service running on `http://localhost:8080`.
 
-### Adapter service
+### Profile service
 
 ```bash
-cd backend/adapter
+cd backend/profile
 go mod tidy
-go run ./cmd/adapter
+go run ./cmd/profile
 ```
 
 > Tip: `make -C backend build` compiles both services with an embedded Git version string (via `git describe`).
 
 Environment variables:
 
-- `ADAPTER_LISTEN_ADDR` (default `:8080`)
-- `ADAPTER_DB_PATH` (default `adapter.db`)
+- `PROFILE_LISTEN_ADDR` (default `:8080`)
+- `PROFILE_DB_PATH` (default `profile.db`)
 - `OLLAMA_URL` (default `http://localhost:11434`)
 - `SEARCH_URL` (default `http://localhost:8090`)
 - `SYSTEM_PROMPT` (optional override for base instructions)
@@ -49,7 +49,7 @@ Environment variables:
 Seed the SQLite database before starting:
 
 ```bash
-sqlite3 adapter.db < scripts/seed.sql
+sqlite3 profile.db < scripts/seed.sql
 ```
 
 ### Search service

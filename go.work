@@ -1,5 +1,5 @@
 go 1.22
 
-use ./backend/adapter
+use ./backend/profile
 use ./backend/search
 

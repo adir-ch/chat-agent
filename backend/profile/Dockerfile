@@ -7,19 +7,19 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o adapter ./cmd/adapter
+RUN go build -o profile ./cmd/profile
 
 FROM alpine:3.20
 
 WORKDIR /srv
 
-COPY --from=builder /app/adapter ./adapter
+COPY --from=builder /app/profile ./profile
 
 VOLUME ["/data"]
 
-ENV ADAPTER_DB_PATH=/data/adapter.db
+ENV PROFILE_DB_PATH=/data/profile.db
 
 EXPOSE 8080
 
-CMD ["/srv/adapter"]
+CMD ["/srv/profile"]
 

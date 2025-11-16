@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: Chat Adapter API
+  title: Chat Profile API
   version: "1.0.0"
   description: >
-    HTTP interface for the chat adapter service. The service enriches agent
+    HTTP interface for the chat profile service. The service enriches agent
     prompts, invokes the Ollama model, and persists conversation history.
 servers:
   - url: http://localhost:8080
@@ -13,7 +13,7 @@ paths:
     post:
       summary: Submit a chat message
       description: >
-        Sends the agent's latest message to the adapter so it can compose a
+        Sends the agent's latest message to the profile service so it can compose a
         context-aware prompt, call the model, and return the assistant reply.
       operationId: createChatCompletion
       requestBody:

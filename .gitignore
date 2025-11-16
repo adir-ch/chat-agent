@@ -6,13 +6,13 @@ frontend/dist/
 .DS_Store
 
 # Go build artifacts
-**/adapter.db
+**/profile.db
 **/*.log
 **/bin/
 **/main
 
 # SQLite
-backend/adapter/adapter.db
+backend/profile/profile.db
 
 # Docker
 *.env

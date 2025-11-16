@@ -11,7 +11,7 @@ export async function sendChatMessage(payload: ChatRequest): Promise<ChatRespons
 
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(detail || 'Failed to contact LLM adapter');
+    throw new Error(detail || 'Failed to contact LLM profile');
   }
 
   return res.json();

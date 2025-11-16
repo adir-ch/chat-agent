@@ -1,4 +1,4 @@
-module chat-agent/backend/adapter
+module chat-agent/backend/profile
 
 go 1.22
 

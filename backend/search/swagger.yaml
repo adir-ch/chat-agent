@@ -4,7 +4,7 @@ info:
   version: "1.0.0"
   description: >
     HTTP facade over Elasticsearch that provides quick lookups for people and
-    property records used by the chat adapter.
+    property records used by the chat profile service.
 servers:
   - url: http://localhost:8090
     description: Default local development address

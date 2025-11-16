@@ -7,10 +7,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 
-	"chat-agent/backend/adapter/internal/ai"
-	"chat-agent/backend/adapter/internal/config"
-	"chat-agent/backend/adapter/internal/db"
-	"chat-agent/backend/adapter/internal/handler"
+	"chat-agent/backend/profile/internal/config"
+	"chat-agent/backend/profile/internal/db"
+	"chat-agent/backend/profile/internal/handler"
 )
 
 type Server struct {
@@ -19,16 +18,17 @@ type Server struct {
 
 func NewServer(cfg *config.Config, dbConn *sql.DB, logger zerolog.Logger) *Server {
 	repo := db.NewRepository(dbConn)
-	aiAgent := ai.New()
 
-	chatHandler := handler.NewChatHandler(cfg, repo, aiAgent, logger)
+	profileHandler := handler.NewProfileHandler(repo, logger)
+	conversationHandler := handler.NewConversationHandler(repo, logger)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	r.Post("/api/chat", chatHandler.HandleChat)
+	r.Get("/api/profile/{agentId}", profileHandler.HandleGetProfile)
+	r.Post("/api/conversations", conversationHandler.HandleSaveConversation)
 
 	return &Server{router: r}
 }
