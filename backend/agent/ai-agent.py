@@ -13,6 +13,7 @@ except ImportError:
     from uuid import uuid4 as uuid7
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableWithMessageHistory
@@ -213,6 +214,15 @@ def process_chat_message(agent_name: str, location: str, listings: list[str], qu
 # FastAPI app setup
 # ----------------------------------------------------------
 app = FastAPI(title="AI Agent API", version="1.0.0")
+
+# Configure CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+)
 
 
 @app.post("/chat", response_model=ChatResponse)

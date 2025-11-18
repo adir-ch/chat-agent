@@ -26,7 +26,14 @@ npm install
 npm run dev
 ```
 
-The dev server proxies `/api` requests to the profile service running on `http://localhost:8080`.
+The frontend connects to the agent service by default at `http://localhost:8070`. To configure a different URL, create a `.env` or `.env.local` file in the `frontend` directory:
+
+```bash
+# .env.local
+VITE_AGENT_URL=http://localhost:8070
+```
+
+The dev server proxies `/api` requests to the profile service running on `http://localhost:8080` (for backward compatibility).
 
 ### Profile service
 
@@ -72,9 +79,9 @@ Environment variables:
 
 Index sample documents in Elasticsearch before chatting, or hook into your existing data pipeline.
 
-## Prompt tuning agent
+## AI Agent service
 
-Located in `backend/agent/`.
+Located in `backend/agent/`. Provides the `/chat` API endpoint for the frontend.
 
 ### Install 
 - `cd backend/agent`
@@ -85,6 +92,12 @@ Located in `backend/agent/`.
 - `source venv/bin/activate`
 - `python ai-agent.py`
 - `deactivate`
+
+The agent service runs on port 8070 by default. Configure the frontend to use it by setting `VITE_AGENT_URL` in `frontend/.env.local`:
+
+```bash
+VITE_AGENT_URL=http://localhost:8070
+```
 
 ## Docker Compose (optional)
 
