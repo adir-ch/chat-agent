@@ -9,118 +9,207 @@ servers:
   - url: http://localhost:8080
     description: Default local development address
 paths:
-  /api/chat:
-    post:
-      summary: Submit a chat message
+  /api/profile/{agentId}:
+    get:
+      summary: Get agent profile
       description: >
-        Sends the agent's latest message to the profile service so it can compose a
-        context-aware prompt, call the model, and return the assistant reply.
-      operationId: createChatCompletion
+        Retrieves the profile information for a specific agent, including their
+        personal information, areas of operation, and property listings.
+      operationId: getProfile
+      tags:
+        - profile
+      parameters:
+        - name: agentId
+          in: path
+          description: Unique identifier of the agent
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent profile information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentProfile'
+              examples:
+                sample:
+                  summary: Example profile
+                  value:
+                    agent_id: "agent-123"
+                    first_name: "Jamie"
+                    last_name: "Agent"
+                    agency: "Real Estate Co"
+                    areas:
+                      - name: "Inner West"
+                        postcode: "2042"
+                      - name: "Eastern Suburbs"
+                        postcode: "2021"
+                    listings:
+                      - address: "12 Smith St"
+                        suburb: "Marrickville"
+                        postcode: "2204"
+                        status: "sold"
+                        sold_date: "2024-01-15T00:00:00Z"
+        '400':
+          description: Missing or invalid agentId parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: agentId is required
+        '404':
+          description: Agent profile not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: profile not found
+        '500':
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: internal server error
+  /api/conversations:
+    post:
+      summary: Save a conversation
+      description: >
+        Saves a conversation record to the database, storing the agent ID, query,
+        and response for historical tracking.
+      operationId: saveConversation
+      tags:
+        - conversations
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatRequest'
+              $ref: '#/components/schemas/SaveConversationRequest'
             examples:
               sample:
                 summary: Basic request
                 value:
-                  agentId: agent-123
-                  message: "Show me recent sales in the Inner West."
+                  agentId: "agent-123"
+                  query: "Show me recent sales in the Inner West"
+                  response: "Here are the recent Inner West sales..."
       responses:
-        '200':
-          description: Assistant reply and optional context summary
+        '201':
+          description: Conversation saved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatResponse'
+                $ref: '#/components/schemas/SaveConversationResponse'
               examples:
                 sample:
                   summary: Successful response
                   value:
-                    message:
-                      id: "20241030161000"
-                      role: assistant
-                      content: "Here are the recent Inner West sales..."
-                      createdAt: "2024-10-30T16:10:00Z"
-                    contextSummary: "Used agent profile and 3 property matches."
+                    status: "success"
         '400':
-          description: Malformed JSON payload
+          description: Invalid request payload or missing required fields
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                invalidPayload:
-                  value:
-                    error: invalid payload
-        '404':
-          description: Agent profile not found
+                type: string
+                examples:
+                  invalidPayload:
+                    value: invalid payload
+                  missingFields:
+                    value: agentId, query, and response are required
+        '500':
+          description: Failed to save conversation
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                missingProfile:
-                  value:
-                    error: profile not found
-        '502':
-          description: Downstream model or tool error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                modelError:
-                  value:
-                    error: failed to contact model
+                type: string
+                example: failed to save conversation
 components:
   schemas:
-    ChatRequest:
+    AgentProfile:
+      type: object
+      description: Complete profile information for an agent
+      required:
+        - agent_id
+      properties:
+        agent_id:
+          type: string
+          description: Unique identifier of the agent
+        first_name:
+          type: string
+          description: First name of the agent
+        last_name:
+          type: string
+          description: Last name of the agent
+        agency:
+          type: string
+          description: Name of the agency the agent works for
+        areas:
+          type: array
+          description: List of areas where the agent operates
+          items:
+            $ref: '#/components/schemas/Area'
+        listings:
+          type: array
+          description: List of property listings associated with the agent
+          items:
+            $ref: '#/components/schemas/Listing'
+    Area:
+      type: object
+      description: Geographic area where the agent operates
+      properties:
+        name:
+          type: string
+          description: Name of the area
+        postcode:
+          type: string
+          description: Postcode of the area
+    Listing:
+      type: object
+      description: Property listing information
+      properties:
+        address:
+          type: string
+          description: Street address of the property
+        suburb:
+          type: string
+          description: Suburb where the property is located
+        postcode:
+          type: string
+          description: Postcode of the property
+        status:
+          type: string
+          description: Current status of the listing (e.g., "sold", "active")
+        sold_date:
+          type: string
+          format: date-time
+          description: Date when the property was sold (if applicable)
+          nullable: true
+    SaveConversationRequest:
       type: object
       required:
         - agentId
-        - message
+        - query
+        - response
       properties:
         agentId:
           type: string
-          description: Unique identifier of the requesting agent
-        message:
+          description: Unique identifier of the agent
+        query:
           type: string
-          description: Free-form message from the agent
-    ChatResponse:
+          description: The query or question from the agent
+        response:
+          type: string
+          description: The response or answer provided
+    SaveConversationResponse:
       type: object
       required:
-        - message
+        - status
       properties:
-        message:
-          $ref: '#/components/schemas/ResponseMessage'
-        contextSummary:
+        status:
           type: string
-          description: Optional summary of context sources used to craft the reply
-    ResponseMessage:
-      type: object
-      required:
-        - id
-        - role
-        - content
-        - createdAt
-      properties:
-        id:
-          type: string
-          description: Identifier generated for the message
-        role:
-          type: string
-          enum: [assistant]
-          description: Role of the returned message
-        content:
-          type: string
-          description: Natural language reply from the assistant
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp (UTC) when the message was generated
+          description: Status of the save operation
+          example: "success"
     Error:
       type: object
       required:
