@@ -1,213 +1,94 @@
 package search
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	es "github.com/elastic/go-elasticsearch/v8"
-	"github.com/rs/zerolog"
-
-	"chat-agent/backend/search/internal/config"
+	"io/ioutil"
+	"net/http"
+	"os"
 )
 
-// ElasticDataRecord represents a single record from elastic-data.json
-type ElasticDataRecord struct {
-	ID   string     `json:"id"`
-	Data PersonData `json:"data"`
+// DataItem holds the exact fields we want from the result
+type DataItem struct {
+	EmailAddress  string `json:"emailaddress"`
+	FullAddress   string `json:"full_address"`
+	FullName      string `json:"full_name"`
+	PhoneLandline string `json:"phone1_landline"`
+	PhoneMobile   string `json:"phone2_mobile"`
 }
 
-// PersonData represents the data object within each record
-type PersonData struct {
-	Name         *PersonName    `json:"name,omitempty"`
-	Address      *PersonAddress `json:"address,omitempty"`
-	Mobile       string         `json:"mobile,omitempty"`
-	Email        string         `json:"email,omitempty"`
-	LastSeenDate string         `json:"last-seen-date,omitempty"`
+// SmartSearchResponse matches only the fields we need
+type SmartSearchResponse struct {
+	Data []DataItem `json:"data"`
 }
 
-// PersonName represents the name object
-type PersonName struct {
-	First string `json:"first,omitempty"`
-	Last  string `json:"last,omitempty"`
-}
+// SmartSearch performs the API call and extracts the required fields
+func SmartSearch(ctx context.Context, query string) ([]DataItem, error) {
 
-// PersonAddress represents the address object
-type PersonAddress struct {
-	StreetNumber string `json:"street-number,omitempty"`
-	StreetName   string `json:"street-name,omitempty"`
-	Suburb       string `json:"suburb,omitempty"`
-	State        string `json:"state,omitempty"`
-	PostCode     string `json:"post-code,omitempty"`
-}
+	// Read config from env
+	apiURL := os.Getenv("ID4ME_API_URL")
+	sessionID := os.Getenv("SESSION_ID")
+	bearer := os.Getenv("BEARER_TOKEN")
 
-type Client struct {
-	elastic *es.Client
-	cfg     *config.Config
-	logger  zerolog.Logger
-}
+	if apiURL == "" {
+		return nil, fmt.Errorf("missing ID4ME_API_URL environment variable")
+	}
+	if sessionID == "" {
+		return nil, fmt.Errorf("missing SESSION_ID environment variable")
+	}
+	if bearer == "" {
+		return nil, fmt.Errorf("missing BEARER_TOKEN environment variable")
+	}
 
-func NewClient(cfg *config.Config, logger zerolog.Logger) (*Client, error) {
-	client, err := es.NewClient(es.Config{
-		Addresses: []string{cfg.ESAddress},
-	})
+	// Build JSON payload
+	payload := map[string]interface{}{
+		"query": query,
+		"page":  0,
+		"size":  50,
+	}
+	body, _ := json.Marshal(payload)
+
+	// Create request WITH CONTEXT
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
-		elastic: client,
-		cfg:     cfg,
-	}, nil
-}
 
-type SearchResult struct {
-	Hits struct {
-		Hits []struct {
-			ID     string                 `json:"_id"`
-			Source map[string]interface{} `json:"_source"`
-		} `json:"hits"`
-	} `json:"hits"`
-}
+	// Set required headers
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("SessionId", sessionID)
 
-// func (c *Client) Search(ctx context.Context, index, query string) (*SearchResult, error) {
-// 	body := map[string]any{
-// 		"query": map[string]any{
-// 			"multi_match": map[string]any{
-// 				"query":  query,
-// 				"fields": []string{"name^3", "description", "address", "suburb"},
-// 			},
-// 		},
-// 		"size": 10,
-// 	}
-// 	payload, err := json.Marshal(body)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Optional headers for compatibility
+	req.Header.Set("Origin", "https://id4me.me")
+	req.Header.Set("Referer", "https://id4me.me/")
 
-// 	res, err := c.elastic.Search(
-// 		c.elastic.Search.WithContext(ctx),
-// 		c.elastic.Search.WithIndex(index),
-//	}
-// 	if res.IsError() {
-// 		return nil, fmt.Errorf("elasticsearch error: %s", res.String())
-// 	}
+	// Create client (or inject this if needed)
+	client := &http.Client{}
 
-// 	var parsed SearchResult
-// 	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
-// 		return nil, err
-// 	}
-
-//		return &parsed, nil
-//	}
-
-// mockDB holds the loaded elastic-data.json records (set via SetMockDB)
-var mockDB []ElasticDataRecord
-
-// SetMockDB sets the mock database for testing/searching
-func SetMockDB(data []ElasticDataRecord) {
-	mockDB = data
-}
-
-// searchInValue recursively searches for a query string in any value (case-insensitive)
-func searchInValue(value interface{}, query string) bool {
-	queryLower := strings.ToLower(query)
-
-	switch v := value.(type) {
-	case map[string]interface{}:
-		for _, val := range v {
-			if searchInValue(val, query) {
-				return true
-			}
-		}
-	case []interface{}:
-		for _, item := range v {
-			if searchInValue(item, query) {
-				return true
-			}
-		}
-	case string:
-		return strings.Contains(strings.ToLower(v), queryLower)
-	case float64, int, int64, float32:
-		return strings.Contains(strings.ToLower(fmt.Sprintf("%v", v)), queryLower)
-	case bool:
-		return strings.Contains(strings.ToLower(fmt.Sprintf("%v", v)), queryLower)
-	}
-
-	return false
-}
-
-// recordToMap converts an ElasticDataRecord to a map[string]interface{} for SearchResult
-func recordToMap(record ElasticDataRecord) map[string]interface{} {
-	// Convert to JSON and back to map to handle nested structures properly
-	jsonBytes, _ := json.Marshal(record)
-	var result map[string]interface{}
-	json.Unmarshal(jsonBytes, &result)
-	return result
-}
-
-// matchesQuery checks if any field in the record matches the query string
-func matchesQuery(record ElasticDataRecord, query string) bool {
-	// Convert record to map for recursive searching
-	recordMap := recordToMap(record)
-	return searchInValue(recordMap, query)
-}
-
-func (c *Client) Search(ctx context.Context, index, query string) (*SearchResult, error) {
-	if query == "" {
-		return &SearchResult{}, nil
-	}
-
-	// Search through mockDB records
-	var matches []ElasticDataRecord
-	for _, record := range mockDB {
-		if matchesQuery(record, query) {
-			matches = append(matches, record)
-		}
-	}
-
-	// Convert matches to SearchResult format
-	result := &SearchResult{}
-	for _, record := range matches {
-		hit := struct {
-			ID     string                 `json:"_id"`
-			Source map[string]interface{} `json:"_source"`
-		}{
-			ID:     record.ID,
-			Source: recordToMap(record),
-		}
-		result.Hits.Hits = append(result.Hits.Hits, hit)
-	}
-
-	return result, nil
-}
-
-func formatResult(result *SearchResult) []map[string]interface{} {
-	items := make([]map[string]interface{}, 0, len(result.Hits.Hits))
-	for _, hit := range result.Hits.Hits {
-		item := map[string]interface{}{
-			"id": hit.ID,
-		}
-		for key, value := range hit.Source {
-			item[key] = value
-		}
-		items = append(items, item)
-	}
-	return items
-}
-
-func (c *Client) SearchPeople(ctx context.Context, query string) ([]map[string]interface{}, error) {
-	result, err := c.Search(ctx, c.cfg.IndexPeople, query)
+	// --- IMPORTANT ---
+	// This call uses the context because it is embedded in the request.
+	// If ctx is cancelled or times out, this Do() call is aborted.
+	// ------------------
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	return formatResult(result), nil
-}
+	defer resp.Body.Close()
 
-func (c *Client) SearchProperty(ctx context.Context, query string) ([]map[string]interface{}, error) {
-	result, err := c.Search(ctx, c.cfg.IndexProperty, query)
+	respBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	return formatResult(result), nil
+
+	var result SmartSearchResponse
+	if err := json.Unmarshal(respBytes, &result); err != nil {
+		fmt.Println("Raw response:", string(respBytes))
+		return nil, fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	return result.Data, nil
 }
