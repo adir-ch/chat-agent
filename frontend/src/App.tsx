@@ -48,7 +48,12 @@ export default function App() {
           agentId: selectedAgentId,
           message: content
         });
-        setMessages((prev) => [...prev, response.message]);
+        // Include tokenUsage in the message if available
+        const assistantMessage: ChatMessage = {
+          ...response.message,
+          tokenUsage: response.tokenUsage
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
         // Focus input after receiving response
         setTimeout(() => {
           chatInputRef.current?.focus();

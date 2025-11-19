@@ -24,6 +24,11 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
     label = agentName || 'User';
   }
   
+  // Format token counts for assistant messages
+  const tokenInfo = message.role === 'assistant' && message.tokenUsage
+    ? `, tokens: (in=${message.tokenUsage.input_tokens}, out=${message.tokenUsage.output_tokens}, total=${message.tokenUsage.total_tokens})`
+    : '';
+  
   return (
     <div
       className={`max-w-[75%] px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
@@ -37,9 +42,13 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
             <span>{timeString}</span>
             <span className="mx-1.5">•</span>
             <span className="text-zinc-400">{label}</span>
+            {tokenInfo && <span>{tokenInfo}</span>}
           </>
         ) : (
-          timeString
+          <>
+            {timeString}
+            {tokenInfo && <span>{tokenInfo}</span>}
+          </>
         )}
       </span>
     </div>

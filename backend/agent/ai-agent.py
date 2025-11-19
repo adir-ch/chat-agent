@@ -85,9 +85,16 @@ class ChatMessage(BaseModel):
     createdAt: str
 
 
+class TokenUsageResponse(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
 class ChatResponse(BaseModel):
     message: ChatMessage
     contextSummary: str | None = None
+    tokenUsage: TokenUsageResponse | None = None
 
 
 # ----------------------------------------------------------
@@ -289,7 +296,7 @@ def extract_token_usage(response) -> Tuple[int, int]:
     return input_tokens, output_tokens
 
 
-def track_and_log_token_usage(response, token_usage: TokenUsage, session_id: str, invoke_label: str = "invoke"):
+def track_and_log_token_usage(response, token_usage: TokenUsage, session_id: str, invoke_label: str = "invoke") -> Tuple[int, int]:
     """
     Extract token usage from LLM response, update session totals, and log the information.
     
@@ -298,6 +305,9 @@ def track_and_log_token_usage(response, token_usage: TokenUsage, session_id: str
         token_usage: The TokenUsage object for the session
         session_id: The session identifier for logging
         invoke_label: Label to identify which invoke this is (e.g., "first invoke", "second invoke")
+    
+    Returns:
+        Tuple[int, int]: (input_tokens, output_tokens) for this invocation
     """
     # Extract token usage from response
     input_tokens, output_tokens = extract_token_usage(response)
@@ -314,13 +324,18 @@ def track_and_log_token_usage(response, token_usage: TokenUsage, session_id: str
         input_tokens, output_tokens, input_tokens + output_tokens,
         token_usage.input_tokens, token_usage.output_tokens, token_usage.total_tokens
     )
+    
+    return input_tokens, output_tokens
 
 
-def process_chat_message(profile: AgentProfile, question: str, session_id: str) -> str:
+def process_chat_message(profile: AgentProfile, question: str, session_id: str) -> Tuple[str, int, int]:
     """
     Process a chat message through the agent chain.
     Handles FETCH: responses by calling fetch_people() and making follow-up invoke.
-    Returns the final response text.
+    
+    Returns:
+        Tuple[str, int, int]: (response_text, total_input_tokens, total_output_tokens)
+        Token counts are cumulative for all invocations in this request.
     """
     # Get or create agent chain/history for this session
     if session_id not in agent_sessions:
@@ -341,6 +356,10 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         "question": question,
     }
 
+    # Track cumulative token counts for this request
+    request_input_tokens = 0
+    request_output_tokens = 0
+
     # First invoke
     response_obj = runnable.invoke(
         inputs,
@@ -348,8 +367,10 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
     )
     response = response_obj.content.strip()
     
-    # Track and log token usage
-    track_and_log_token_usage(response_obj, token_usage, session_id, "first invoke")
+    # Track and log token usage, accumulate for this request
+    input_tokens1, output_tokens1 = track_and_log_token_usage(response_obj, token_usage, session_id, "first invoke")
+    request_input_tokens += input_tokens1
+    request_output_tokens += output_tokens1
 
     if response.upper().startswith("FETCH:"):
         LOGGER.info(">>>>>>>> first invoke: %s", response)
@@ -375,11 +396,13 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         )
         response = response_obj2.content.strip()
         
-        # Track and log token usage
-        track_and_log_token_usage(response_obj2, token_usage, session_id, "second invoke")
+        # Track and log token usage, accumulate for this request
+        input_tokens2, output_tokens2 = track_and_log_token_usage(response_obj2, token_usage, session_id, "second invoke")
+        request_input_tokens += input_tokens2
+        request_output_tokens += output_tokens2
         LOGGER.info(">>>>>>>>>>> second invoke: %s:\n%s", follow_up, response)
 
-    return response
+    return response, request_input_tokens, request_output_tokens
 
 
 # ----------------------------------------------------------
@@ -438,7 +461,7 @@ async def chat_endpoint(request: ChatRequest):
                 )
         
         # Process the chat message
-        response_content = process_chat_message(
+        response_content, input_tokens, output_tokens = process_chat_message(
             profile=profile,
             question=request.message,
             session_id=session_id
@@ -452,7 +475,14 @@ async def chat_endpoint(request: ChatRequest):
             createdAt=datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         )
         
-        return ChatResponse(message=message)
+        # Create token usage response
+        token_usage = TokenUsageResponse(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens
+        )
+        
+        return ChatResponse(message=message, tokenUsage=token_usage)
         
     except Exception as e:
         LOGGER.error("chat_endpoint: error processing request: %s", e, exc_info=True)
