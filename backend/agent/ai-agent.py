@@ -3,6 +3,7 @@ import os
 import requests
 from datetime import datetime, UTC
 from typing import Dict, Tuple
+from dataclasses import dataclass
 
 # Disable LangSmith tracing to avoid UUID v7 warnings
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
@@ -43,8 +44,30 @@ class AgentProfile:
         self.location = location
         self.listings = listings
 
-# Session management: maps agentId -> (runnable, history, profile)
-agent_sessions: Dict[str, Tuple[RunnableWithMessageHistory, ChatMessageHistory, AgentProfile]] = {}
+
+# Token usage tracking
+@dataclass
+class TokenUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+    
+    def add(self, input_tokens: int, output_tokens: int):
+        """Add tokens to the cumulative totals."""
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+    
+    def reset(self):
+        """Reset token counts to zero."""
+        self.input_tokens = 0
+        self.output_tokens = 0
+
+
+# Session management: maps agentId -> (runnable, history, profile, token_usage)
+agent_sessions: Dict[str, Tuple[RunnableWithMessageHistory, ChatMessageHistory, AgentProfile, TokenUsage]] = {}
 
 
 # ----------------------------------------------------------
@@ -222,6 +245,77 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
 # ----------------------------------------------------------
 # Chat processing logic
 # ----------------------------------------------------------
+def extract_token_usage(response) -> Tuple[int, int]:
+    """
+    Extract token usage from LLM response metadata.
+    Returns (input_tokens, output_tokens) tuple.
+    """
+    input_tokens = 0
+    output_tokens = 0
+    
+    try:
+        # LangChain AIMessage objects have response_metadata
+        if hasattr(response, 'response_metadata'):
+            metadata = response.response_metadata
+            if metadata:
+                # Ollama typically provides token usage in different formats
+                # Try common field names
+                if 'token_usage' in metadata:
+                    token_usage = metadata['token_usage']
+                    input_tokens = token_usage.get('prompt_tokens', token_usage.get('input_tokens', 0))
+                    output_tokens = token_usage.get('completion_tokens', token_usage.get('output_tokens', 0))
+                elif 'prompt_tokens' in metadata:
+                    input_tokens = metadata.get('prompt_tokens', 0)
+                    output_tokens = metadata.get('completion_tokens', metadata.get('eval_count', 0))
+                elif 'eval_count' in metadata:
+                    # Ollama format: eval_count is output tokens, prompt_eval_count is input tokens
+                    output_tokens = metadata.get('eval_count', 0)
+                    input_tokens = metadata.get('prompt_eval_count', 0)
+        
+        # Also check if response has usage_metadata attribute (some LangChain versions)
+        if hasattr(response, 'usage_metadata'):
+            usage = response.usage_metadata
+            if usage:
+                input_tokens = getattr(usage, 'input_tokens', input_tokens)
+                output_tokens = getattr(usage, 'output_tokens', output_tokens)
+        
+        # Debug: log the response structure if no tokens found
+        if input_tokens == 0 and output_tokens == 0:
+            LOGGER.debug("extract_token_usage: no tokens found in response. Available attributes: %s", 
+                        dir(response) if hasattr(response, '__dict__') else 'N/A')
+    except Exception as e:
+        LOGGER.debug("extract_token_usage: error extracting tokens: %s", e)
+    
+    return input_tokens, output_tokens
+
+
+def track_and_log_token_usage(response, token_usage: TokenUsage, session_id: str, invoke_label: str = "invoke"):
+    """
+    Extract token usage from LLM response, update session totals, and log the information.
+    
+    Args:
+        response: The LLM response object
+        token_usage: The TokenUsage object for the session
+        session_id: The session identifier for logging
+        invoke_label: Label to identify which invoke this is (e.g., "first invoke", "second invoke")
+    """
+    # Extract token usage from response
+    input_tokens, output_tokens = extract_token_usage(response)
+    
+    # Update session token totals
+    token_usage.add(input_tokens, output_tokens)
+    
+    # Log token usage information
+    LOGGER.info(
+        "Token usage for session '%s' (%s): Input: %d, Output: %d, Total: %d | "
+        "Session totals: Input: %d, Output: %d, Total: %d",
+        session_id,
+        invoke_label,
+        input_tokens, output_tokens, input_tokens + output_tokens,
+        token_usage.input_tokens, token_usage.output_tokens, token_usage.total_tokens
+    )
+
+
 def process_chat_message(profile: AgentProfile, question: str, session_id: str) -> str:
     """
     Process a chat message through the agent chain.
@@ -232,12 +326,13 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
     if session_id not in agent_sessions:
         LOGGER.debug("process_chat_message: creating new agent for session_id='%s'", session_id)
         runnable, history = create_agent(profile.agent_name, profile.location, profile.listings)
-        agent_sessions[session_id] = (runnable, history, profile)
+        token_usage = TokenUsage()
+        agent_sessions[session_id] = (runnable, history, profile, token_usage)
     else:
         LOGGER.debug("process_chat_message: reusing existing agent for session_id='%s'", session_id)
-        runnable, history, _ = agent_sessions[session_id]
+        runnable, history, _, token_usage = agent_sessions[session_id]
         # Update profile in case it changed
-        agent_sessions[session_id] = (runnable, history, profile)
+        agent_sessions[session_id] = (runnable, history, profile, token_usage)
 
     inputs = {
         "agent_name": profile.agent_name,
@@ -246,10 +341,15 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         "question": question,
     }
 
-    response = runnable.invoke(
+    # First invoke
+    response_obj = runnable.invoke(
         inputs,
         config={"configurable": {"session_id": session_id}},
-    ).content.strip()
+    )
+    response = response_obj.content.strip()
+    
+    # Track and log token usage
+    track_and_log_token_usage(response_obj, token_usage, session_id, "first invoke")
 
     if response.upper().startswith("FETCH:"):
         LOGGER.info(">>>>>>>> first invoke: %s", response)
@@ -263,9 +363,8 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
             "Please summarise the key opportunities for the agent."
         )
 
-        #LOGGER.debug("follow_up: %s\n", follow_up)
-
-        response = runnable.invoke(
+        # Second invoke
+        response_obj2 = runnable.invoke(
             {
                 "agent_name": profile.agent_name,
                 "location": profile.location,
@@ -273,7 +372,11 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
                 "question": follow_up,
             },
             config={"configurable": {"session_id": session_id}},
-        ).content.strip()
+        )
+        response = response_obj2.content.strip()
+        
+        # Track and log token usage
+        track_and_log_token_usage(response_obj2, token_usage, session_id, "second invoke")
         LOGGER.info(">>>>>>>>>>> second invoke: %s:\n%s", follow_up, response)
 
     return response
@@ -309,7 +412,7 @@ async def chat_endpoint(request: ChatRequest):
         profile = None
         if session_id in agent_sessions:
             # Profile already cached in session
-            _, _, profile = agent_sessions[session_id]
+            _, _, profile, _ = agent_sessions[session_id]
             LOGGER.debug("chat_endpoint: using cached profile for session_id='%s'", session_id)
         else:
             # Fetch profile from profile service
@@ -321,8 +424,8 @@ async def chat_endpoint(request: ChatRequest):
                 profile = AgentProfile(
                     agent_id=request.agentId,
                     agent_name=request.agentId,
-                    location=LOCATION,
-                    listings=LISTINGS
+                    location="",
+                    listings=[]
                 )
             except Exception as e:
                 # Network or other error - use fallback
@@ -330,8 +433,8 @@ async def chat_endpoint(request: ChatRequest):
                 profile = AgentProfile(
                     agent_id=request.agentId,
                     agent_name=request.agentId,
-                    location=LOCATION,
-                    listings=LISTINGS
+                    location="",
+                    listings=[]
                 )
         
         # Process the chat message
