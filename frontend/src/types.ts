@@ -17,3 +17,16 @@ export interface ChatResponse {
   contextSummary?: string;
 }
 
+export interface Area {
+  name: string;
+  postcode: string;
+}
+
+export interface AgentListItem {
+  agent_id: string;
+  first_name: string;
+  last_name: string;
+  agency: string;
+  areas: Area[];
+}
+

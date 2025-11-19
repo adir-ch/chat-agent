@@ -4,6 +4,7 @@ import type { ChatMessage } from '../types';
 interface Props {
   messages: ChatMessage[];
   isLoading: boolean;
+  agentName?: string | null;
 }
 
 const roleStyles: Record<ChatMessage['role'], string> = {
@@ -12,7 +13,17 @@ const roleStyles: Record<ChatMessage['role'], string> = {
   system: 'bg-zinc-800 border border-zinc-700 mx-auto text-sm'
 };
 
-function ChatMessageItem({ message }: { message: ChatMessage }) {
+function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentName?: string | null }) {
+  const timeString = new Date(message.createdAt).toLocaleTimeString();
+  
+  // Show label based on message role
+  let label: string | null = null;
+  if (message.role === 'assistant') {
+    label = 'Assistant';
+  } else if (message.role === 'user') {
+    label = agentName || 'User';
+  }
+  
   return (
     <div
       className={`max-w-[75%] px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
@@ -20,14 +31,30 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
       <p className="whitespace-pre-wrap leading-relaxed text-zinc-100">
         {message.content}
       </p>
-      <span className="mt-2 block text-[10px] uppercase tracking-wider text-zinc-500">
-        {new Date(message.createdAt).toLocaleTimeString()}
+      <span className="mt-2 block text-[10px] tracking-wider text-zinc-500">
+        {label ? (
+          <>
+            <span>{timeString}</span>
+            <span className="mx-1.5">•</span>
+            <span className="text-zinc-400">{label}</span>
+          </>
+        ) : (
+          timeString
+        )}
       </span>
     </div>
   );
 }
 
-export const ChatMessageList = memo(({ messages, isLoading }: Props) => {
+export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) => {
+  // Debug logging to verify prop passing
+  console.log('ChatMessageList - Props:', {
+    agentName,
+    hasAgentName: !!agentName,
+    messagesCount: messages.length,
+    assistantMessages: messages.filter(m => m.role === 'assistant').length
+  });
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +86,7 @@ export const ChatMessageList = memo(({ messages, isLoading }: Props) => {
       className="flex-1 flex flex-col gap-4 overflow-y-auto px-6 py-6"
     >
       {messages.map((msg) => (
-        <ChatMessageItem key={msg.id} message={msg} />
+        <ChatMessageItem key={msg.id} message={msg} agentName={agentName} />
       ))}
       {isLoading ? (
         <div className="mx-auto text-sm text-zinc-500 animate-pulse">Generating…</div>

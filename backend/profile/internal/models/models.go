@@ -11,6 +11,14 @@ type AgentProfile struct {
 	Listings  []Listing `json:"listings"`
 }
 
+type AgentListItem struct {
+	AgentID   string `json:"agent_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Agency    string `json:"agency"`
+	Areas     []Area `json:"areas"`
+}
+
 type Area struct {
 	Name     string `json:"name"`
 	Postcode string `json:"postcode"`

@@ -35,11 +35,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 LOGGER = logging.getLogger(__name__)
 
-# Hardcoded agent profile data (fallback)
-AGENT_NAME = "agent-123"
-LOCATION = "Bondi"
-LISTINGS = ["156 Campbell Pde", "88 Beach Rd"]
-
 # Profile data structure
 class AgentProfile:
     def __init__(self, agent_id: str, agent_name: str, location: str, listings: list[str]):
@@ -306,7 +301,7 @@ async def chat_endpoint(request: ChatRequest):
     """
     try:
         # Use agentId as session_id for conversation history
-        session_id = "agent-123" #request.agentId
+        session_id = request.agentId
         
         LOGGER.info("chat_endpoint: processing message for agentId='%s', session_id='%s'", request.agentId, session_id)
         
