@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: Chat Profile API
+  version: "1.0.0"
+  description: >
+    HTTP interface for the chat profile service. The service enriches agent
+    prompts, invokes the Ollama model, and persists conversation history.
+servers:
+  - url: http://localhost:8080
+    description: Default local development address
+paths:
+  /api/profile/{agentId}:
+    get:
+      summary: Get agent profile
+      description: >
+        Retrieves the profile information for a specific agent, including their
+        personal information, areas of operation, and property listings.
+      operationId: getProfile
+      tags:
+        - profile
+      parameters:
+        - name: agentId
+          in: path
+          description: Unique identifier of the agent
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent profile information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentProfile'
+              examples:
+                sample:
+                  summary: Example profile
+                  value:
+                    agent_id: "agent-123"
+                    first_name: "Jamie"
+                    last_name: "Agent"
+                    agency: "Real Estate Co"
+                    areas:
+                      - name: "Inner West"
+                        postcode: "2042"
+                      - name: "Eastern Suburbs"
+                        postcode: "2021"
+                    listings:
+                      - address: "12 Smith St"
+                        suburb: "Marrickville"
+                        postcode: "2204"
+                        status: "sold"
+                        sold_date: "2024-01-15T00:00:00Z"
+        '400':
+          description: Missing or invalid agentId parameter
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: agentId is required
+        '404':
+          description: Agent profile not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: profile not found
+        '500':
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: internal server error
+  /api/conversations:
+    post:
+      summary: Save a conversation
+      description: >
+        Saves a conversation record to the database, storing the agent ID, query,
+        and response for historical tracking.
+      operationId: saveConversation
+      tags:
+        - conversations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveConversationRequest'
+            examples:
+              sample:
+                summary: Basic request
+                value:
+                  agentId: "agent-123"
+                  query: "Show me recent sales in the Inner West"
+                  response: "Here are the recent Inner West sales..."
+      responses:
+        '201':
+          description: Conversation saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveConversationResponse'
+              examples:
+                sample:
+                  summary: Successful response
+                  value:
+                    status: "success"
+        '400':
+          description: Invalid request payload or missing required fields
+          content:
+            text/plain:
+              schema:
+                type: string
+                examples:
+                  invalidPayload:
+                    value: invalid payload
+                  missingFields:
+                    value: agentId, query, and response are required
+        '500':
+          description: Failed to save conversation
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: failed to save conversation
+components:
+  schemas:
+    AgentProfile:
+      type: object
+      description: Complete profile information for an agent
+      required:
+        - agent_id
+      properties:
+        agent_id:
+          type: string
+          description: Unique identifier of the agent
+        first_name:
+          type: string
+          description: First name of the agent
+        last_name:
+          type: string
+          description: Last name of the agent
+        agency:
+          type: string
+          description: Name of the agency the agent works for
+        areas:
+          type: array
+          description: List of areas where the agent operates
+          items:
+            $ref: '#/components/schemas/Area'
+        listings:
+          type: array
+          description: List of property listings associated with the agent
+          items:
+            $ref: '#/components/schemas/Listing'
+    Area:
+      type: object
+      description: Geographic area where the agent operates
+      properties:
+        name:
+          type: string
+          description: Name of the area
+        postcode:
+          type: string
+          description: Postcode of the area
+    Listing:
+      type: object
+      description: Property listing information
+      properties:
+        address:
+          type: string
+          description: Street address of the property
+        suburb:
+          type: string
+          description: Suburb where the property is located
+        postcode:
+          type: string
+          description: Postcode of the property
+        status:
+          type: string
+          description: Current status of the listing (e.g., "sold", "active")
+        sold_date:
+          type: string
+          format: date-time
+          description: Date when the property was sold (if applicable)
+          nullable: true
+    SaveConversationRequest:
+      type: object
+      required:
+        - agentId
+        - query
+        - response
+      properties:
+        agentId:
+          type: string
+          description: Unique identifier of the agent
+        query:
+          type: string
+          description: The query or question from the agent
+        response:
+          type: string
+          description: The response or answer provided
+    SaveConversationResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: Status of the save operation
+          example: "success"
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable description of the failure

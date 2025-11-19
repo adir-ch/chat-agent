@@ -2,26 +2,26 @@ GO ?= go
 
 GIT_VERSION := $(shell git describe --tags --dirty --always 2>/dev/null || echo unknown)
 
-ADAPTER_DIR := adapter
+PROFILE_DIR := profile
 SEARCH_DIR := search
 
-ADAPTER_BIN := $(ADAPTER_DIR)/bin/adapter
+PROFILE_BIN := $(PROFILE_DIR)/bin/profile
 SEARCH_BIN := $(SEARCH_DIR)/bin/search
 
-ADAPTER_LDFLAGS := -ldflags "-X chat-agent/backend/adapter/internal/version.BuildVersion=$(GIT_VERSION)"
+PROFILE_LDFLAGS := -ldflags "-X chat-agent/backend/profile/internal/version.BuildVersion=$(GIT_VERSION)"
 SEARCH_LDFLAGS := -ldflags "-X chat-agent/backend/search/internal/version.BuildVersion=$(GIT_VERSION)"
 
-.PHONY: all build adapter search clean test test-search test-adapter
+.PHONY: all build profile search clean test test-search test-profile
 
 all: build
 
-build: adapter search
+build: profile search
 
-adapter: $(ADAPTER_BIN)
+profile: $(PROFILE_BIN)
 
-$(ADAPTER_BIN):
+$(PROFILE_BIN):
 	mkdir -p $(dir $@)
-	$(GO) build $(ADAPTER_LDFLAGS) -o $@ ./$(ADAPTER_DIR)/cmd/adapter
+	$(GO) build $(PROFILE_LDFLAGS) -o $@ ./$(PROFILE_DIR)/cmd/profile
 
 search: $(SEARCH_BIN)
 
@@ -30,15 +30,22 @@ $(SEARCH_BIN):
 	$(GO) build $(SEARCH_LDFLAGS) -o $@ ./$(SEARCH_DIR)/cmd/search
 
 clean:
-	rm -rf $(ADAPTER_DIR)/bin $(SEARCH_DIR)/bin
+	make clean-profile
+	make clean-search
 
-test: test-search test-adapter
+clean-profile:
+	rm -rf $(PROFILE_DIR)/bin
+
+clean-search:
+	rm -rf $(SEARCH_DIR)/bin
+
+test: test-search test-profile
 
 test-search:
 	@echo "Running search service tests..."
 	@bash tests/search-test.sh
 
-test-adapter:
-	@echo "Running adapter service tests..."
-	@bash tests/adapter-test.sh
+test-profile:
+	@echo "Running profile service tests..."
+	@bash tests/profile-test.sh
 

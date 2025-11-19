@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"chat-agent/backend/adapter/internal/models"
+	"chat-agent/backend/profile/internal/models"
 )
 
 type Repository struct {
@@ -21,11 +21,18 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 	var profile models.AgentProfile
 	profile.AgentID = agentID
 
+	var areaJSON string
 	err := r.DB.QueryRowContext(ctx,
 		`SELECT first_name, last_name, agency, area_json FROM user_info WHERE agent_id = ?`, agentID).
-		Scan(&profile.FirstName, &profile.LastName, &profile.Agency, newJSONScanner(&profile.Areas))
+		Scan(&profile.FirstName, &profile.LastName, &profile.Agency, &areaJSON)
 	if err != nil {
 		return nil, err
+	}
+
+	if areaJSON != "" {
+		if err := json.Unmarshal([]byte(areaJSON), &profile.Areas); err != nil {
+			return nil, err
+		}
 	}
 
 	rows, err := r.DB.QueryContext(ctx,
@@ -64,21 +71,5 @@ func (r *Repository) SaveConversation(ctx context.Context, conv *models.Conversa
 		conv.AgentID, conv.Query, conv.Response,
 	)
 	return err
-}
-
-func newJSONScanner(target any) func(src any) error {
-	return func(src any) error {
-		if src == nil {
-			return nil
-		}
-		switch data := src.(type) {
-		case string:
-			return json.Unmarshal([]byte(data), target)
-		case []byte:
-			return json.Unmarshal(data, target)
-		default:
-			return nil
-		}
-	}
 }
 

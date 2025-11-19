@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -33,9 +35,11 @@ func NewServer(cfg *config.Config, client *search.Client, logger zerolog.Logger)
 		json.NewEncoder(w).Encode(results)
 	})
 
-	r.Get("/search/property", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/search/smart", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("q")
-		results, err := client.SearchProperty(r.Context(), query)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		results, err := search.SmartSearch(ctx, query)
 		if err != nil {
 			logger.Error().Err(err).Msg("property search failed")
 			http.Error(w, "search error", http.StatusBadGateway)

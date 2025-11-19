@@ -10,10 +10,10 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"chat-agent/backend/adapter/internal/api"
-	"chat-agent/backend/adapter/internal/config"
-	"chat-agent/backend/adapter/internal/db"
-	"chat-agent/backend/adapter/internal/version"
+	"chat-agent/backend/profile/internal/api"
+	"chat-agent/backend/profile/internal/config"
+	"chat-agent/backend/profile/internal/db"
+	"chat-agent/backend/profile/internal/version"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info().Str("addr", cfg.ListenAddr).Msg("adapter listening")
+		logger.Info().Str("addr", cfg.ListenAddr).Msg("profile listening")
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal().Err(err).Msg("server error")
 		}

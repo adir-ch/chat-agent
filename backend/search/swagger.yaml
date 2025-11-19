@@ -3,8 +3,8 @@ info:
   title: Search Service API
   version: "1.0.0"
   description: >
-    HTTP facade over Elasticsearch that provides quick lookups for people and
-    property records used by the chat adapter.
+    HTTP facade over Elasticsearch that provides quick lookups for people records
+    and SmartSearch integration for property and contact information used by the chat profile service.
 servers:
   - url: http://localhost:8090
     description: Default local development address
@@ -13,6 +13,8 @@ paths:
     get:
       summary: Search people records
       operationId: searchPeople
+      tags:
+        - search
       parameters:
         - name: q
           in: query
@@ -41,38 +43,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /search/property:
+  /search/smart:
     get:
-      summary: Search property records
-      operationId: searchProperty
+      summary: Smart search for property and contact information
+      description: >
+        Performs a smart search query against the ID4ME API to find property and
+        contact information. Requires ID4ME_API_URL, SESSION_ID, and BEARER_TOKEN
+        environment variables to be configured. Uses a 5-second timeout.
+      operationId: smartSearch
+      tags:
+        - search
       parameters:
         - name: q
           in: query
-          description: Free-text query to match against indexed property fields
+          description: Free-text query to search for property and contact information
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Property documents that matched the search query
+          description: Property and contact information that matched the search query
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SearchResults'
+                $ref: '#/components/schemas/SmartSearchResults'
               examples:
                 sample:
                   summary: Example response
                   value:
-                    - id: "property-456"
-                      address: "12 Smith St"
-                      suburb: "Marrickville"
-                      bedrooms: 3
+                    - emailaddress: "john.doe@example.com"
+                      full_address: "123 Main St, Sydney NSW 2000"
+                      full_name: "John Doe"
+                      phone1_landline: "+61 2 1234 5678"
+                      phone2_mobile: "+61 400 000 000"
         '502':
-          description: Elasticsearch returned an error
+          description: SmartSearch API returned an error or timed out
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: string
+                example: search error
 components:
   schemas:
     SearchResults:
@@ -88,6 +98,30 @@ components:
             type: string
             description: Identifier of the document
         additionalProperties: true
+    SmartSearchResults:
+      type: array
+      description: Array of property and contact information items from SmartSearch
+      items:
+        $ref: '#/components/schemas/DataItem'
+    DataItem:
+      type: object
+      description: Property and contact information item from SmartSearch
+      properties:
+        emailaddress:
+          type: string
+          description: Email address of the contact
+        full_address:
+          type: string
+          description: Full address of the property
+        full_name:
+          type: string
+          description: Full name of the contact
+        phone1_landline:
+          type: string
+          description: Landline phone number
+        phone2_mobile:
+          type: string
+          description: Mobile phone number
     Error:
       type: object
       required:

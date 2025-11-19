@@ -1,13 +1,24 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useRef, forwardRef, useImperativeHandle } from 'react';
 
 interface Props {
   onSend: (value: string) => Promise<void>;
   disabled?: boolean;
 }
 
-export function ChatInput({ onSend, disabled }: Props) {
+export interface ChatInputHandle {
+  focus: () => void;
+}
+
+export const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSend, disabled }, ref) => {
   const [value, setValue] = useState('');
   const [pending, setPending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    }
+  }));
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -30,6 +41,7 @@ export function ChatInput({ onSend, disabled }: Props) {
     >
       <div className="bg-surface border border-zinc-800 rounded-2xl shadow-lg flex items-center py-3 px-4 gap-3">
         <input
+          ref={inputRef}
           className="flex-1 bg-transparent text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
           placeholder="Ask about your properties, clients, or market insights…"
           value={value}
@@ -46,5 +58,5 @@ export function ChatInput({ onSend, disabled }: Props) {
       </div>
     </form>
   );
-}
+});
 
