@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '../types';
 
 interface Props {
@@ -27,14 +27,45 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
   );
 }
 
-export const ChatMessageList = memo(({ messages, isLoading }: Props) => (
-  <div className="flex-1 flex flex-col gap-4 overflow-y-auto px-6 py-6">
-    {messages.map((msg) => (
-      <ChatMessageItem key={msg.id} message={msg} />
-    ))}
-    {isLoading ? (
-      <div className="mx-auto text-sm text-zinc-500 animate-pulse">Generating…</div>
-    ) : null}
-  </div>
-));
+export const ChatMessageList = memo(({ messages, isLoading }: Props) => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const bottomAnchorRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    // Try scrolling the anchor element into view first (more reliable)
+    if (bottomAnchorRef.current) {
+      bottomAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    } else if (scrollContainerRef.current) {
+      // Fallback to scrolling the container
+      const container = scrollContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, []);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0 || isLoading) {
+      // Use setTimeout to ensure DOM has updated
+      const timeoutId = setTimeout(() => {
+        scrollToBottom();
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages.length, isLoading, scrollToBottom]);
+
+  return (
+    <div 
+      ref={scrollContainerRef}
+      className="flex-1 flex flex-col gap-4 overflow-y-auto px-6 py-6"
+    >
+      {messages.map((msg) => (
+        <ChatMessageItem key={msg.id} message={msg} />
+      ))}
+      {isLoading ? (
+        <div className="mx-auto text-sm text-zinc-500 animate-pulse">Generating…</div>
+      ) : null}
+      <div ref={bottomAnchorRef} />
+    </div>
+  );
+});
 

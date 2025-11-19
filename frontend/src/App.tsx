@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { ChatInput } from './components/ChatInput';
+import { useCallback, useMemo, useState, useRef } from 'react';
+import { ChatInput, type ChatInputHandle } from './components/ChatInput';
 import { ChatMessageList } from './components/ChatMessageList';
 import { sendChatMessage } from './services/api';
 import type { ChatMessage } from './types';
@@ -10,6 +10,7 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
+  const chatInputRef = useRef<ChatInputHandle>(null);
 
   const sortedMessages = useMemo(
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
@@ -35,9 +36,17 @@ export default function App() {
           message: content
         });
         setMessages((prev) => [...prev, response.message]);
+        // Focus input after receiving response
+        setTimeout(() => {
+          chatInputRef.current?.focus();
+        }, 100);
       } catch (err) {
         console.error(err);
         setError(err instanceof Error ? err.message : 'Unknown error');
+        // Focus input even on error
+        setTimeout(() => {
+          chatInputRef.current?.focus();
+        }, 100);
       } finally {
         setLoading(false);
       }
@@ -61,7 +70,7 @@ export default function App() {
         <div className="flex-1 flex justify-center">
           <div className="w-full max-w-3xl bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col">
             <ChatMessageList messages={sortedMessages} isLoading={isLoading} />
-            <ChatInput onSend={handleSend} disabled={isLoading} />
+            <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
           </div>
         </div>
       </main>

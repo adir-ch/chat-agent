@@ -20,7 +20,7 @@ from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 from pydantic import BaseModel
 
-MODEL = "qwen3:0.6b" #"gemma3:1b" #
+MODEL = "llama3:latest" #"qwen3:0.6b" #"gemma3:1b" #
 FETCH_URL = "http://localhost:8090/search/smart"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
