@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 MODEL = "llama3:latest" #"qwen3:0.6b" #"gemma3:1b" #
 FETCH_URL = "http://localhost:8090/search/smart"
+PROFILE_URL = os.getenv("PROFILE_URL", "http://localhost:8080")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # # Silence noisy HTTP logs
@@ -34,13 +35,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 LOGGER = logging.getLogger(__name__)
 
-# Hardcoded agent profile data
+# Hardcoded agent profile data (fallback)
 AGENT_NAME = "agent-123"
 LOCATION = "Bondi"
 LISTINGS = ["156 Campbell Pde", "88 Beach Rd"]
 
-# Session management: maps agentId -> (runnable, history)
-agent_sessions: Dict[str, Tuple[RunnableWithMessageHistory, ChatMessageHistory]] = {}
+# Profile data structure
+class AgentProfile:
+    def __init__(self, agent_id: str, agent_name: str, location: str, listings: list[str]):
+        self.agent_id = agent_id
+        self.agent_name = agent_name
+        self.location = location
+        self.listings = listings
+
+# Session management: maps agentId -> (runnable, history, profile)
+agent_sessions: Dict[str, Tuple[RunnableWithMessageHistory, ChatMessageHistory, AgentProfile]] = {}
 
 
 # ----------------------------------------------------------
@@ -61,6 +70,69 @@ class ChatMessage(BaseModel):
 class ChatResponse(BaseModel):
     message: ChatMessage
     contextSummary: str | None = None
+
+
+# ----------------------------------------------------------
+# Utility: fetch agent profile from profile service
+# ----------------------------------------------------------
+def fetch_agent_profile(agent_id: str) -> AgentProfile:
+    """Fetch agent profile from the profile service."""
+    LOGGER.info("fetch_agent_profile: fetching profile for agent_id='%s'", agent_id)
+    try:
+        url = f"{PROFILE_URL}/api/profile/{agent_id}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        
+        profile_data = response.json()
+        
+        # Map profile data to AgentProfile
+        # agent_name: first_name + last_name or fallback to agent_id
+        first_name = profile_data.get("first_name", "")
+        last_name = profile_data.get("last_name", "")
+        if first_name or last_name:
+            agent_name = f"{first_name} {last_name}".strip()
+        else:
+            agent_name = profile_data.get("agent_id", agent_id)
+        
+        # location: first area name or empty string
+        areas = profile_data.get("areas", [])
+        location = areas[0].get("name", "") if areas else ""
+        
+        # listings: format as ["address, suburb"]
+        listings_data = profile_data.get("listings", [])
+        listings = []
+        for listing in listings_data:
+            address = listing.get("address", "")
+            suburb = listing.get("suburb", "")
+            if address and suburb:
+                listings.append(f"{address}, {suburb}")
+            elif address:
+                listings.append(address)
+        
+        profile = AgentProfile(
+            agent_id=agent_id,
+            agent_name=agent_name,
+            location=location,
+            listings=listings
+        )
+        
+        LOGGER.info("fetch_agent_profile: successfully fetched profile - name='%s', location='%s', listings=%d", 
+                   agent_name, location, len(listings))
+        return profile
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            LOGGER.warning("fetch_agent_profile: profile not found for agent_id='%s'", agent_id)
+            raise ValueError(f"Profile not found for agent {agent_id}")
+        else:
+            LOGGER.error("fetch_agent_profile: HTTP error fetching profile: %s", e)
+            raise
+    except requests.exceptions.RequestException as e:
+        LOGGER.error("fetch_agent_profile: network error fetching profile: %s", e)
+        raise
+    except Exception as e:
+        LOGGER.error("fetch_agent_profile: unexpected error fetching profile: %s", e)
+        raise
 
 
 # ----------------------------------------------------------
@@ -155,7 +227,7 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
 # ----------------------------------------------------------
 # Chat processing logic
 # ----------------------------------------------------------
-def process_chat_message(agent_name: str, location: str, listings: list[str], question: str, session_id: str) -> str:
+def process_chat_message(profile: AgentProfile, question: str, session_id: str) -> str:
     """
     Process a chat message through the agent chain.
     Handles FETCH: responses by calling fetch_people() and making follow-up invoke.
@@ -164,16 +236,18 @@ def process_chat_message(agent_name: str, location: str, listings: list[str], qu
     # Get or create agent chain/history for this session
     if session_id not in agent_sessions:
         LOGGER.debug("process_chat_message: creating new agent for session_id='%s'", session_id)
-        runnable, history = create_agent(agent_name, location, listings)
-        agent_sessions[session_id] = (runnable, history)
+        runnable, history = create_agent(profile.agent_name, profile.location, profile.listings)
+        agent_sessions[session_id] = (runnable, history, profile)
     else:
         LOGGER.debug("process_chat_message: reusing existing agent for session_id='%s'", session_id)
-        runnable, history = agent_sessions[session_id]
+        runnable, history, _ = agent_sessions[session_id]
+        # Update profile in case it changed
+        agent_sessions[session_id] = (runnable, history, profile)
 
     inputs = {
-        "agent_name": agent_name,
-        "location": location,
-        "listings": ", ".join(listings),
+        "agent_name": profile.agent_name,
+        "location": profile.location,
+        "listings": ", ".join(profile.listings) if profile.listings else "",
         "question": question,
     }
 
@@ -198,9 +272,9 @@ def process_chat_message(agent_name: str, location: str, listings: list[str], qu
 
         response = runnable.invoke(
             {
-                "agent_name": agent_name,
-                "location": location,
-                "listings": ", ".join(listings),
+                "agent_name": profile.agent_name,
+                "location": profile.location,
+                "listings": ", ".join(profile.listings) if profile.listings else "",
                 "question": follow_up,
             },
             config={"configurable": {"session_id": session_id}},
@@ -231,21 +305,43 @@ async def chat_endpoint(request: ChatRequest):
     Chat endpoint that processes messages through the AI agent.
     """
     try:
-        # Use hardcoded agent profile data
-        agent_name = AGENT_NAME
-        location = LOCATION
-        listings = LISTINGS
-        
         # Use agentId as session_id for conversation history
-        session_id = request.agentId
+        session_id = "agent-123" #request.agentId
         
         LOGGER.info("chat_endpoint: processing message for agentId='%s', session_id='%s'", request.agentId, session_id)
         
+        # Fetch or get cached profile for this session
+        profile = None
+        if session_id in agent_sessions:
+            # Profile already cached in session
+            _, _, profile = agent_sessions[session_id]
+            LOGGER.debug("chat_endpoint: using cached profile for session_id='%s'", session_id)
+        else:
+            # Fetch profile from profile service
+            try:
+                profile = fetch_agent_profile(request.agentId)
+            except ValueError as e:
+                # Profile not found (404) - use fallback
+                LOGGER.warning("chat_endpoint: profile not found, using fallback: %s", e)
+                profile = AgentProfile(
+                    agent_id=request.agentId,
+                    agent_name=request.agentId,
+                    location=LOCATION,
+                    listings=LISTINGS
+                )
+            except Exception as e:
+                # Network or other error - use fallback
+                LOGGER.error("chat_endpoint: error fetching profile, using fallback: %s", e)
+                profile = AgentProfile(
+                    agent_id=request.agentId,
+                    agent_name=request.agentId,
+                    location=LOCATION,
+                    listings=LISTINGS
+                )
+        
         # Process the chat message
         response_content = process_chat_message(
-            agent_name=agent_name,
-            location=location,
-            listings=listings,
+            profile=profile,
             question=request.message,
             session_id=session_id
         )

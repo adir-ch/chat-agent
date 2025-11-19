@@ -10,7 +10,7 @@ type Config struct {
 func Load() (*Config, error) {
 	return &Config{
 		ListenAddr:   envOr("PROFILE_LISTEN_ADDR", ":8080"),
-		DatabasePath: envOr("PROFILE_DB_PATH", "profile.db"),
+		DatabasePath: envOr("PROFILE_DB_PATH", "./profile.db"),
 	}, nil
 }
 

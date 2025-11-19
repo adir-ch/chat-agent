@@ -30,7 +30,14 @@ $(SEARCH_BIN):
 	$(GO) build $(SEARCH_LDFLAGS) -o $@ ./$(SEARCH_DIR)/cmd/search
 
 clean:
-	rm -rf $(PROFILE_DIR)/bin $(SEARCH_DIR)/bin
+	make clean-profile
+	make clean-search
+
+clean-profile:
+	rm -rf $(PROFILE_DIR)/bin
+
+clean-search:
+	rm -rf $(SEARCH_DIR)/bin
 
 test: test-search test-profile
 
