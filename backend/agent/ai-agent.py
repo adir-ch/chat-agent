@@ -228,6 +228,7 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
         "     such as potential leads, timing, or market insights.\n\n"
         "Conversation so far:\n{chat_history}\n\n"
         "User question: {question}"
+        "Provide the answers in a Markdown format"
     )
 
 
