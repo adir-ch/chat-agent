@@ -23,7 +23,7 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 
 	var areaJSON string
 	err := r.DB.QueryRowContext(ctx,
-		`SELECT first_name, last_name, agency, area_json FROM user_info WHERE agent_id = ?`, agentID).
+		`SELECT first_name, last_name, agency, area FROM user_info WHERE agent_id = ?`, agentID).
 		Scan(&profile.FirstName, &profile.LastName, &profile.Agency, &areaJSON)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 	}
 
 	rows, err := r.DB.QueryContext(ctx,
-		`SELECT address, suburb, postcode, status, sold_date FROM property_listings WHERE agent_id = ?`,
+		`SELECT address, suburb, postcode, status, update_date FROM property_listings WHERE agent_id = ?`,
 		agentID,
 	)
 	if err != nil {
@@ -47,15 +47,15 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 	for rows.Next() {
 		var (
 			listing models.Listing
-			soldRaw sql.NullString
+			updateDateRaw sql.NullString
 		)
 
-		if err := rows.Scan(&listing.Address, &listing.Suburb, &listing.Postcode, &listing.Status, &soldRaw); err != nil {
+		if err := rows.Scan(&listing.Address, &listing.Suburb, &listing.Postcode, &listing.Status, &updateDateRaw); err != nil {
 			return nil, err
 		}
-		if soldRaw.Valid {
-			if parsed, err := time.Parse(time.RFC3339, soldRaw.String); err == nil {
-				listing.SoldDate = &parsed
+		if updateDateRaw.Valid {
+			if parsed, err := time.Parse(time.RFC3339, updateDateRaw.String); err == nil {
+				listing.UpdateDate = &parsed
 			}
 		}
 
@@ -67,7 +67,7 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 
 func (r *Repository) GetAllAgents(ctx context.Context) ([]*models.AgentListItem, error) {
 	rows, err := r.DB.QueryContext(ctx,
-		`SELECT agent_id, first_name, last_name, agency, area_json FROM user_info`)
+		`SELECT agent_id, first_name, last_name, agency, area FROM user_info`)
 	if err != nil {
 		return nil, err
 	}

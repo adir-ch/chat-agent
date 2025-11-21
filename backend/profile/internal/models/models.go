@@ -25,11 +25,11 @@ type Area struct {
 }
 
 type Listing struct {
-	Address  string     `json:"address"`
-	Suburb   string     `json:"suburb"`
-	Postcode string     `json:"postcode"`
-	Status   string     `json:"status"`
-	SoldDate *time.Time `json:"sold_date,omitempty"`
+	Address   string     `json:"address"`
+	Suburb    string     `json:"suburb"`
+	Postcode  string     `json:"postcode"`
+	Status    string     `json:"status"`
+	UpdateDate *time.Time `json:"update_date,omitempty"`
 }
 
 type Conversation struct {

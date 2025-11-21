@@ -50,7 +50,7 @@ paths:
                         suburb: "Marrickville"
                         postcode: "2204"
                         status: "sold"
-                        sold_date: "2024-01-15T00:00:00Z"
+                        update_date: "2024-01-15T00:00:00Z"
         '400':
           description: Missing or invalid agentId parameter
           content:
@@ -250,10 +250,10 @@ components:
         status:
           type: string
           description: Current status of the listing (e.g., "sold", "active")
-        sold_date:
+        update_date:
           type: string
           format: date-time
-          description: Date when the property was sold (if applicable)
+          description: Date when the property listing was last updated (if applicable)
           nullable: true
     SaveConversationRequest:
       type: object
