@@ -21,7 +21,9 @@ from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 from pydantic import BaseModel
 
-MODEL = "llama3:latest" #"qwen3:0.6b" #"gemma3:1b" #
+from prompts import SYSTEM_PROMPT, QUERY_PROMPT, ANALYSIS_PROMPT
+
+MODEL = "gemma3:1b"#"llama3:latest" #"qwen3:0.6b" #"gemma3:1b" #
 FETCH_URL = "http://localhost:8090/search/smart"
 PROFILE_URL = os.getenv("PROFILE_URL", "http://localhost:8080")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -187,49 +189,17 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
     llm = ChatOllama(model=MODEL, base_url="http://localhost:11434")
     LOGGER.debug("create_agent: ChatOllama initialized with model=%s", MODEL)
 
-    # prompt = ChatPromptTemplate.from_template(
-    #     "You are a helpful real estate assistant working with agent {agent_name} in {location}. "
-    #     "Their current listings are: {listings}. "
-    #     "If you need live homeowner or prospect data, respond ONLY with:\n"
-    #     "FETCH: <search terms to send to the data service>\n\n"
-    #     "Conversation so far:\n{chat_history}\n\n"
-    #     "User question: {question}"
-    # )
-
-    # prompt = ChatPromptTemplate.from_template(
-    #     "You are a helpful real estate assistant working with agent {agent_name} in {location}. "
-    #     "Their current listings are: {listings}. "
-    #     "\n\n"
-    #     "If you need live homeowner or prospect data, you must respond ONLY in the following format:\n"
-    #     "FETCH: <suburb name or postcode>\n\n"
-    #     "Rules for FETCH:\n"
-    #     "- Never include full street addresses.\n"
-    #     "- Never include commas, unit numbers, or street names.\n"
-    #     "- Always use just a suburb or postcode.\n"
-    #     "- Do not include any explanations, punctuation, or text other than the FETCH line.\n\n"
-    #     "Conversation so far:\n{chat_history}\n\n"
-    #     "User question: {question}"
-    # )
-
-    prompt = ChatPromptTemplate.from_template(
-        "You are a helpful real estate assistant working with agent {agent_name} in {location}. "
-        "Their current listings are: {listings}.\n\n"
-        "You operate in two modes:\n"
-        "1. Query Mode – When you do NOT yet have homeowner or prospect data:\n"
-        "   • Respond ONLY in the format:  FETCH: <users query>\n"
-        "   • Follow these rules:\n"
-        "     - Never include full street addresses or commas.\n"
-        "     - Use only a suburb or postcode.\n"
-        "     - Output nothing except the single FETCH line.\n\n"
-        "2. Analysis Mode – When the user provides homeowner or prospect data "
-        "(you will see text like 'Here are the search results...' or 'Data:' in the conversation):\n"
-        "   • Do NOT use FETCH again.\n"
-        "   • Analyse the provided data and summarise key opportunities for the agent, "
-        "     such as potential leads, timing, or market insights.\n\n"
-        "Conversation so far:\n{chat_history}\n\n"
+    # Combine all three prompt components into one template
+    # Note: Using string concatenation (not f-strings) to preserve template variables
+    combined_prompt = (
+        SYSTEM_PROMPT + "\n\n" +
+        QUERY_PROMPT + "\n\n" +
+        ANALYSIS_PROMPT + "\n\n" +
+        "Conversation so far:\n{chat_history}\n\n" +
         "User question: {question}"
-        "Provide the answers in a Markdown format"
     )
+    
+    prompt = ChatPromptTemplate.from_template(combined_prompt)
 
 
     LOGGER.debug("create_agent: ChatPromptTemplate ready")
