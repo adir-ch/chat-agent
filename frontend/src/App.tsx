@@ -75,7 +75,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col text-zinc-100">
       <header className="px-6 pt-8 pb-4">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="w-[75%] mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
               {selectedAgentName ? selectedAgentName : 'Agent Assist'}
@@ -93,7 +93,7 @@ export default function App() {
       <main className="flex-1 flex flex-col items-stretch">
         {selectedAgentId ? (
           <div className="flex-1 flex justify-center">
-            <div className="w-full max-w-3xl bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col">
+            <div className="w-[75%] bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col">
               {(() => {
                 // Debug logging to verify prop passing
                 console.log('App - Passing to ChatMessageList:', {
