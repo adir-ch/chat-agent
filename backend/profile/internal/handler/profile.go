@@ -54,3 +54,23 @@ func (h *ProfileHandler) HandleGetProfile(w http.ResponseWriter, r *http.Request
 		return
 	}
 }
+
+func (h *ProfileHandler) HandleGetAgents(w http.ResponseWriter, r *http.Request) {
+	h.logger.Debug().Msg("fetching all agents")
+
+	ctx := r.Context()
+
+	agents, err := h.repo.GetAllAgents(ctx)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to load agents from database")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(agents); err != nil {
+		h.logger.Error().Err(err).Msg("failed to encode agents response")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+}

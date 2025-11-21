@@ -26,12 +26,16 @@ npm install
 npm run dev
 ```
 
-The frontend connects to the agent service by default at `http://localhost:8070`. To configure a different URL, create a `.env` or `.env.local` file in the `frontend` directory:
+The frontend connects to the agent service by default at `http://localhost:8070`. To configure different URLs, create a `.env` or `.env.local` file in the `frontend` directory:
 
 ```bash
 # .env.local
 VITE_AGENT_URL=http://localhost:8070
+VITE_PROFILE_URL=http://localhost:8080
 ```
+
+- `VITE_AGENT_URL`: The URL of the agent service API endpoint (default: `http://localhost:8070`)
+- `VITE_PROFILE_URL`: The URL of the profile service API endpoint (default: `http://localhost:8080`)
 
 The dev server proxies `/api` requests to the profile service running on `http://localhost:8080` (for backward compatibility).
 

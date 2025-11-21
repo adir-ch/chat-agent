@@ -65,6 +65,35 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 	return &profile, rows.Err()
 }
 
+func (r *Repository) GetAllAgents(ctx context.Context) ([]*models.AgentListItem, error) {
+	rows, err := r.DB.QueryContext(ctx,
+		`SELECT agent_id, first_name, last_name, agency, area_json FROM user_info`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []*models.AgentListItem
+	for rows.Next() {
+		var agent models.AgentListItem
+		var areaJSON string
+
+		if err := rows.Scan(&agent.AgentID, &agent.FirstName, &agent.LastName, &agent.Agency, &areaJSON); err != nil {
+			return nil, err
+		}
+
+		if areaJSON != "" {
+			if err := json.Unmarshal([]byte(areaJSON), &agent.Areas); err != nil {
+				return nil, err
+			}
+		}
+
+		agents = append(agents, &agent)
+	}
+
+	return agents, rows.Err()
+}
+
 func (r *Repository) SaveConversation(ctx context.Context, conv *models.Conversation) error {
 	_, err := r.DB.ExecContext(ctx,
 		`INSERT INTO llm_conversations (agent_id, query, response) VALUES (?, ?, ?)`,

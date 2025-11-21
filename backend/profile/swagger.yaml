@@ -72,6 +72,53 @@ paths:
               schema:
                 type: string
                 example: internal server error
+  /api/agents:
+    get:
+      summary: Get all agents
+      description: >
+        Retrieves a list of all available agents with their basic information,
+        including agent ID, name, agency, and areas of operation.
+      operationId: getAgents
+      tags:
+        - profile
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentListItem'
+              examples:
+                sample:
+                  summary: Example agents list
+                  value:
+                    - agent_id: "agent-123"
+                      first_name: "Jordan"
+                      last_name: "Lee"
+                      agency: "Harbor Realty"
+                      areas:
+                        - name: "Bondi"
+                          postcode: "2026"
+                        - name: "Coogee"
+                          postcode: "2034"
+                    - agent_id: "agent-456"
+                      first_name: "Sarah"
+                      last_name: "Mitchell"
+                      agency: "Urban Properties"
+                      areas:
+                        - name: "Newtown"
+                          postcode: "2042"
+                        - name: "Marrickville"
+                          postcode: "2204"
+        '500':
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: internal server error
   /api/conversations:
     post:
       summary: Save a conversation
@@ -154,6 +201,29 @@ components:
           description: List of property listings associated with the agent
           items:
             $ref: '#/components/schemas/Listing'
+    AgentListItem:
+      type: object
+      description: Basic information for an agent in a list
+      required:
+        - agent_id
+      properties:
+        agent_id:
+          type: string
+          description: Unique identifier of the agent
+        first_name:
+          type: string
+          description: First name of the agent
+        last_name:
+          type: string
+          description: Last name of the agent
+        agency:
+          type: string
+          description: Name of the agency the agent works for
+        areas:
+          type: array
+          description: List of areas where the agent operates
+          items:
+            $ref: '#/components/schemas/Area'
     Area:
       type: object
       description: Geographic area where the agent operates
