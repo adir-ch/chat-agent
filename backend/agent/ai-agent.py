@@ -22,10 +22,7 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from pydantic import BaseModel
 
 from prompts import SYSTEM_PROMPT, QUERY_PROMPT, ANALYSIS_PROMPT
-
-MODEL = "gemma3:1b"#"llama3:latest" #"qwen3:0.6b" #"gemma3:1b" #
-FETCH_URL = "http://localhost:8090/search/smart"
-PROFILE_URL = os.getenv("PROFILE_URL", "http://localhost:8080")
+from config import Config
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # # Silence noisy HTTP logs
@@ -106,7 +103,7 @@ def fetch_agent_profile(agent_id: str) -> AgentProfile:
     """Fetch agent profile from the profile service."""
     LOGGER.info("fetch_agent_profile: fetching profile for agent_id='%s'", agent_id)
     try:
-        url = f"{PROFILE_URL}/api/profile/{agent_id}"
+        url = f"{Config.PROFILE_URL}/api/profile/{agent_id}"
         response = requests.get(url, timeout=5)
         response.raise_for_status()
         
@@ -169,7 +166,7 @@ def fetch_people(query: str) -> str:
     """Fetch live homeowner data from your local endpoint."""
     LOGGER.debug(">>>>>>>>>>>> fetch_people: starting request for query='%s'", query)
     try:
-        response = requests.get(FETCH_URL, params={"q": query})
+        response = requests.get(Config.FETCH_URL, params={"q": query})
         response.raise_for_status()
         #LOGGER.debug("fetch_people: completed request with status=%s", response.status_code)
         LOGGER.debug(">>>>>>>>>>>> fetch_people: completed request with: %s", response.text)
@@ -186,8 +183,8 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
     LOGGER.debug("create_agent: initializing agent='%s' location='%s' listings=%s",
                  agent_name, location, listings)
 
-    llm = ChatOllama(model=MODEL, base_url="http://localhost:11434")
-    LOGGER.debug("create_agent: ChatOllama initialized with model=%s", MODEL)
+    llm = ChatOllama(model=Config.OLLAMA_MODEL, base_url=Config.OLLAMA_BASE_URL)
+    LOGGER.debug("create_agent: ChatOllama initialized with model=%s", Config.OLLAMA_MODEL)
 
     # Combine all three prompt components into one template
     # Note: Using string concatenation (not f-strings) to preserve template variables
@@ -384,7 +381,7 @@ app = FastAPI(title="AI Agent API", version="1.0.0")
 # Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=Config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -473,8 +470,8 @@ def main():
     logging.getLogger("langchain_ollama").setLevel(logging.ERROR)
     
     import uvicorn
-    LOGGER.info("Starting AI Agent API server on port 8070")
-    uvicorn.run(app, host="0.0.0.0", port=8070)
+    LOGGER.info("Starting AI Agent (model: %s) API server on %s:%d", Config.OLLAMA_MODEL, Config.SERVER_HOST, Config.SERVER_PORT)
+    uvicorn.run(app, host=Config.SERVER_HOST, port=Config.SERVER_PORT)
 
 
 if __name__ == "__main__":
