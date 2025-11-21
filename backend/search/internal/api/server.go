@@ -39,13 +39,23 @@ func NewServer(cfg *config.Config, client *search.Client, logger zerolog.Logger)
 		query := r.URL.Query().Get("q")
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		results, err := search.SmartSearch(ctx, query)
+		results, err := search.SmartSearch(ctx, query, logger)
 		if err != nil {
 			logger.Error().Err(err).Msg("property search failed")
 			http.Error(w, "search error", http.StatusBadGateway)
 			return
 		}
-		json.NewEncoder(w).Encode(results)
+		// Defensive check: ensure results is never nil
+		if results == nil {
+			logger.Warn().Msg("SmartSearch returned nil, converting to empty slice")
+			results = []search.DataItem{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(results); err != nil {
+			logger.Error().Err(err).Msg("failed to encode response")
+			http.Error(w, "encoding error", http.StatusInternalServerError)
+			return
+		}
 	})
 
 	return &Server{router: r}

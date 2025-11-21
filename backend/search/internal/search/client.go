@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
+
+	"github.com/rs/zerolog"
 )
 
 // DataItem holds the exact fields we want from the result
@@ -19,36 +21,60 @@ type DataItem struct {
 	PhoneMobile   string `json:"phone2_mobile"`
 }
 
-// SmartSearchResponse matches only the fields we need
+// RecordResponse represents the nested Record object structure
+type RecordResponse struct {
+	RecCount    int        `json:"recCount"`
+	RecRelation string     `json:"recRelation"`
+	Elapsed     int        `json:"elapsed"`
+	ErrorCode   int        `json:"errorCode"`
+	Record      []DataItem `json:"record"` // The actual array of records
+	More        bool       `json:"more"`
+	Keys        string     `json:"keys"`
+}
+
+// SmartSearchResponse matches the API response structure
 type SmartSearchResponse struct {
-	Data []DataItem `json:"data"`
+	People      []DataItem      `json:"people"` // Legacy field (may not be present)
+	Record      *RecordResponse `json:"Record"` // Nested Record object
+	RecCount    int             `json:"RecCount"`
+	RecRelation string          `json:"RecRelation"`
+	Elapsed     int             `json:"Elapsed"`
+	Error       *string         `json:"Error"`
+	ErrorCode   int             `json:"ErrorCode"`
+	More        bool            `json:"More"`
+	Keys        *string         `json:"Keys"`
 }
 
 // SmartSearch performs the API call and extracts the required fields
-func SmartSearch(ctx context.Context, query string) ([]DataItem, error) {
-
-	// Read config from env
-	apiURL := os.Getenv("ID4ME_API_URL")
-	sessionID := os.Getenv("SESSION_ID")
-	bearer := os.Getenv("BEARER_TOKEN")
-
-	if apiURL == "" {
-		return nil, fmt.Errorf("missing ID4ME_API_URL environment variable")
-	}
-	if sessionID == "" {
-		return nil, fmt.Errorf("missing SESSION_ID environment variable")
-	}
-	if bearer == "" {
-		return nil, fmt.Errorf("missing BEARER_TOKEN environment variable")
+func SmartSearch(ctx context.Context, query string, logger zerolog.Logger) ([]DataItem, error) {
+	// Read API key from env
+	apiKey := os.Getenv("ID4ME_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("missing ID4ME_API_KEY environment variable")
 	}
 
-	// Build JSON payload
+	// Hardcoded API URL
+	apiURL := "https://admin.id4me.me/SearchAPI"
+
+	// Build JSON payload matching new API format
 	payload := map[string]interface{}{
-		"query": query,
-		"page":  0,
-		"size":  50,
+		"page":     0,
+		"size":     200,
+		"querytag": "json",
+		"request": []map[string]interface{}{
+			{
+				"id":      0,
+				"command": "query",
+				"arg":     query,
+			},
+		},
+		"index": "search-au",
 	}
-	body, _ := json.Marshal(payload)
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal payload: %v", err)
+	}
 
 	// Create request WITH CONTEXT
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(body))
@@ -57,16 +83,10 @@ func SmartSearch(ctx context.Context, query string) ([]DataItem, error) {
 	}
 
 	// Set required headers
-	req.Header.Set("Accept", "application/json, text/plain, */*")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+bearer)
-	req.Header.Set("SessionId", sessionID)
+	req.Header.Set("X-API-Key", apiKey)
 
-	// Optional headers for compatibility
-	req.Header.Set("Origin", "https://id4me.me")
-	req.Header.Set("Referer", "https://id4me.me/")
-
-	// Create client (or inject this if needed)
+	// Create client
 	client := &http.Client{}
 
 	// --- IMPORTANT ---
@@ -79,16 +99,48 @@ func SmartSearch(ctx context.Context, query string) ([]DataItem, error) {
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := ioutil.ReadAll(resp.Body)
+	// Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		respBytes, _ := io.ReadAll(resp.Body)
+		logger.Error().Int("status", resp.StatusCode).Str("body", string(respBytes)).Msg("API returned non-200 status")
+		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	var result SmartSearchResponse
 	if err := json.Unmarshal(respBytes, &result); err != nil {
-		fmt.Println("Raw response:", string(respBytes))
+		logger.Error().Msgf("failed to parse JSON: %v", err)
+		logger.Error().Msgf("response body was: %s", string(respBytes))
 		return nil, fmt.Errorf("failed to parse JSON: %v", err)
 	}
 
-	return result.Data, nil
+	// Use Record field if People is empty (API uses nested "Record.record" structure)
+	var results []DataItem
+	if len(result.People) > 0 {
+		results = result.People
+		logger.Info().Int("results_received", len(results)).Msg("received results from People field")
+	} else if result.Record != nil && len(result.Record.Record) > 0 {
+		results = result.Record.Record
+		logger.Info().Int("results_received", len(results)).Msg("received results from Record field")
+	} else {
+		logger.Info().Int("results_received", 0).Msg("no results received from API")
+	}
+
+	// Check for API errors
+	if result.Error != nil && *result.Error != "" {
+		return nil, fmt.Errorf("API error: %s (ErrorCode: %d)", *result.Error, result.ErrorCode)
+	}
+
+	// Return results array (from either People or Record.record field)
+	// Ensure we return an empty slice instead of nil to avoid encoding as null
+	if results == nil {
+		logger.Warn().Msg("no results found in API response")
+		return []DataItem{}, nil
+	}
+
+	return results, nil
 }
