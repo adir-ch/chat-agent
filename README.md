@@ -77,9 +77,7 @@ Environment variables:
 - `ELASTICSEARCH_URL` (default `http://localhost:9200`)
 - `ES_INDEX_PEOPLE` (default `people`)
 - `ES_INDEX_PROPERTY` (default `properties`)
-- `ID4ME_API_URL` (required for SmartSearch endpoint)
-- `SESSION_ID` (required for SmartSearch endpoint)
-- `BEARER_TOKEN` (required for SmartSearch endpoint)
+- `ID4ME_API_KEY` (required for SmartSearch endpoint - API key for https://admin.id4me.me/SearchAPI)
 
 Index sample documents in Elasticsearch before chatting, or hook into your existing data pipeline.
 

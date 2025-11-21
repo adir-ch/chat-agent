@@ -80,16 +80,16 @@ func LoadMockDB() ([]search.ElasticDataRecord, error) {
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("version", version.BuildVersion).Logger()
 
-	// Load mock data
-	var err error
-	MockDB, err = LoadMockDB()
-	if err != nil {
-		logger.Warn().Err(err).Msg("failed to load elastic-data.json, continuing without mock data")
-	} else {
-		logger.Info().Int("records", len(MockDB)).Msg("loaded mock data")
-		// Set the mock data in the search package
-		search.SetMockDB(MockDB)
-	}
+	// // Load mock data
+	// var err error
+	// MockDB, err = LoadMockDB()
+	// if err != nil {
+	// 	logger.Warn().Err(err).Msg("failed to load elastic-data.json, continuing without mock data")
+	// } else {
+	// 	logger.Info().Int("records", len(MockDB)).Msg("loaded mock data")
+	// 	// Set the mock data in the search package
+	// 	search.SetMockDB(MockDB)
+	// }
 
 	cfg := config.Load()
 
