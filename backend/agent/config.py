@@ -12,8 +12,15 @@ class Config:
     """Configuration class for the AI Agent service."""
     
     # Ollama configuration
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3:latest")
+    _ollama_model = os.getenv("OLLAMA_MODEL", "llama3:latest")
+    OLLAMA_MODEL = _ollama_model.strip() if _ollama_model else "llama3:latest"
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    
+    # LangSmith configuration
+    LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "true")
+    LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
+    LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "chat-agent")
+    LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_ENDPOINT", "")
     
     # Service URLs
     FETCH_URL = os.getenv("FETCH_URL", "http://localhost:8090/search/smart")

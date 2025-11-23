@@ -5,9 +5,6 @@ from datetime import datetime, UTC
 from typing import Dict, Tuple
 from dataclasses import dataclass
 
-# Disable LangSmith tracing to avoid UUID v7 warnings
-os.environ["LANGCHAIN_TRACING_V2"] = "false"
-
 try:
     from langsmith import uuid7
 except ImportError:
@@ -19,10 +16,19 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from prompts import SYSTEM_PROMPT, QUERY_PROMPT, ANALYSIS_PROMPT
 from config import Config
+
+# Configure LangSmith tracing
+os.environ["LANGCHAIN_TRACING_V2"] = Config.LANGCHAIN_TRACING_V2
+if Config.LANGCHAIN_API_KEY:
+    os.environ["LANGCHAIN_API_KEY"] = Config.LANGCHAIN_API_KEY
+if Config.LANGCHAIN_PROJECT:
+    os.environ["LANGCHAIN_PROJECT"] = Config.LANGCHAIN_PROJECT
+if Config.LANGCHAIN_ENDPOINT:
+    os.environ["LANGCHAIN_ENDPOINT"] = Config.LANGCHAIN_ENDPOINT
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # # Silence noisy HTTP logs
@@ -73,6 +79,8 @@ agent_sessions: Dict[str, Tuple[RunnableWithMessageHistory, ChatMessageHistory, 
 # Pydantic models for API
 # ----------------------------------------------------------
 class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra='ignore')  # Ignore extra fields
+    
     agentId: str
     message: str
 
@@ -183,8 +191,17 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
     LOGGER.debug("create_agent: initializing agent='%s' location='%s' listings=%s",
                  agent_name, location, listings)
 
-    llm = ChatOllama(model=Config.OLLAMA_MODEL, base_url=Config.OLLAMA_BASE_URL)
-    LOGGER.debug("create_agent: ChatOllama initialized with model=%s", Config.OLLAMA_MODEL)
+    # Validate model is not empty
+    model = Config.OLLAMA_MODEL.strip() if Config.OLLAMA_MODEL else None
+    if not model or len(model) == 0:
+        error_msg = f"OLLAMA_MODEL is not set or is empty. Current value: '{Config.OLLAMA_MODEL}' (type: {type(Config.OLLAMA_MODEL)})"
+        LOGGER.error(error_msg)
+        raise ValueError(error_msg)
+    
+    LOGGER.info("create_agent: initializing ChatOllama with model='%s', base_url='%s'", model, Config.OLLAMA_BASE_URL)
+    # Ensure model is passed as a non-empty string
+    llm = ChatOllama(model=str(model).strip(), base_url=Config.OLLAMA_BASE_URL)
+    LOGGER.debug("create_agent: ChatOllama initialized successfully")
 
     # Combine all three prompt components into one template
     # Note: Using string concatenation (not f-strings) to preserve template variables
@@ -324,14 +341,24 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         "question": question,
     }
 
+    LOGGER.info("process_chat_message: inputs=%s", inputs['question'])
     # Track cumulative token counts for this request
     request_input_tokens = 0
     request_output_tokens = 0
 
-    # First invoke
+    # First invoke with LangSmith trace context
     response_obj = runnable.invoke(
         inputs,
-        config={"configurable": {"session_id": session_id}},
+        config={
+            "configurable": {"session_id": session_id},
+            "tags": ["chat-agent", f"agent-{profile.agent_id}", "first-invoke"],
+            "metadata": {
+                "agent_id": profile.agent_id,
+                "agent_name": profile.agent_name,
+                "location": profile.location,
+            },
+            "run_name": f"chat-{session_id}-initial",
+        },
     )
     response = response_obj.content.strip()
     
@@ -352,7 +379,7 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
             "Please summarise the key opportunities for the agent."
         )
 
-        # Second invoke
+        # Second invoke with LangSmith trace context
         response_obj2 = runnable.invoke(
             {
                 "agent_name": profile.agent_name,
@@ -360,7 +387,17 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
                 "listings": ", ".join(profile.listings) if profile.listings else "",
                 "question": follow_up,
             },
-            config={"configurable": {"session_id": session_id}},
+            config={
+                "configurable": {"session_id": session_id},
+                "tags": ["chat-agent", f"agent-{profile.agent_id}", "second-invoke", "fetch-followup"],
+                "metadata": {
+                    "agent_id": profile.agent_id,
+                    "agent_name": profile.agent_name,
+                    "location": profile.location,
+                    "query": query,
+                },
+                "run_name": f"chat-{session_id}-followup",
+            },
         )
         response = response_obj2.content.strip()
         
