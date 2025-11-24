@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import requests
 from datetime import datetime, UTC
 from typing import Dict, Tuple
@@ -12,7 +13,7 @@ except ImportError:
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
@@ -168,6 +169,94 @@ def fetch_agent_profile(agent_id: str) -> AgentProfile:
 
 
 # ----------------------------------------------------------
+# Utility: mask sensitive data
+# ----------------------------------------------------------
+def mask_sensitive_data(text: str) -> str:
+    """
+    Mask sensitive data in text:
+    - Mobile numbers: mask the middle 4 digits
+    - Email addresses: mask 3-4 letters in the local part (before @)
+    """
+    masked_text = text
+    
+    # Mask mobile numbers - find sequences of digits that look like phone numbers (8-15 digits)
+    # Match phone numbers in various formats: +61 412 345 678, 0412 345 678, (04) 1234 5678, etc.
+    phone_pattern = r'(?:\+?\d{1,3}[-.\s()]?)?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}'
+    
+    def mask_phone(match):
+        phone = match.group(0)
+        # Extract only digits
+        digits = re.sub(r'\D', '', phone)
+        
+        if len(digits) >= 8:  # Only mask if it looks like a phone number
+            # Mask middle 4 digits
+            if len(digits) <= 10:
+                # For 8-10 digit numbers: keep first 2 and last 2, mask middle 4
+                masked_digits = digits[:2] + '****' + digits[-2:]
+            else:
+                # For longer numbers: keep first 3 and last 3, mask middle 4
+                masked_digits = digits[:3] + '****' + digits[-3:]
+            
+            # Build masked phone by replacing digits sequentially
+            result = list(phone)
+            digit_pos = 0
+            for i, char in enumerate(result):
+                if char.isdigit():
+                    if digit_pos < len(masked_digits):
+                        result[i] = masked_digits[digit_pos]
+                        digit_pos += 1
+            return ''.join(result)
+        
+        return phone
+    
+    masked_text = re.sub(phone_pattern, mask_phone, masked_text)
+    
+    # Mask email addresses - mask 3-4 characters in the local part (before @)
+    email_pattern = r'\b([a-zA-Z0-9._+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
+    
+    def mask_email(match):
+        local_part = match.group(1)
+        domain = match.group(2)
+        
+        # Split local part by dots to handle cases like "john.doe"
+        parts = local_part.split('.')
+        masked_parts = []
+        
+        for part in parts:
+            # Count only letters in this part
+            letters_only = re.sub(r'[^a-zA-Z]', '', part)
+            
+            if len(letters_only) <= 2:
+                # Too short to mask meaningfully
+                masked_parts.append(part)
+            elif len(letters_only) <= 5:
+                # Mask 3 letters, keep first and last letter visible
+                first_letter_idx = next((i for i, c in enumerate(part) if c.isalpha()), None)
+                last_letter_idx = next((i for i in range(len(part)-1, -1, -1) if part[i].isalpha()), None)
+                if first_letter_idx is not None and last_letter_idx is not None:
+                    masked_part = part[:first_letter_idx+1] + '***' + part[last_letter_idx:]
+                    masked_parts.append(masked_part)
+                else:
+                    masked_parts.append(part)
+            else:
+                # Mask 4 letters, keep first and last letter visible
+                first_letter_idx = next((i for i, c in enumerate(part) if c.isalpha()), None)
+                last_letter_idx = next((i for i in range(len(part)-1, -1, -1) if part[i].isalpha()), None)
+                if first_letter_idx is not None and last_letter_idx is not None:
+                    masked_part = part[:first_letter_idx+1] + '****' + part[last_letter_idx:]
+                    masked_parts.append(masked_part)
+                else:
+                    masked_parts.append(part)
+        
+        masked_local = '.'.join(masked_parts)
+        return f"{masked_local}@{domain}"
+    
+    masked_text = re.sub(email_pattern, mask_email, masked_text)
+    
+    return masked_text
+
+
+# ----------------------------------------------------------
 # Utility: fetch homeowner data from your backend
 # ----------------------------------------------------------
 def fetch_people(query: str) -> str:
@@ -191,17 +280,35 @@ def create_agent(agent_name: str, location: str, listings: list[str]):
     LOGGER.debug("create_agent: initializing agent='%s' location='%s' listings=%s",
                  agent_name, location, listings)
 
-    # Validate model is not empty
-    model = Config.OLLAMA_MODEL.strip() if Config.OLLAMA_MODEL else None
-    if not model or len(model) == 0:
-        error_msg = f"OLLAMA_MODEL is not set or is empty. Current value: '{Config.OLLAMA_MODEL}' (type: {type(Config.OLLAMA_MODEL)})"
+    # Validate OpenAI API key is set
+    api_key = Config.OPENAI_API_KEY.strip() if Config.OPENAI_API_KEY else None
+    if not api_key or len(api_key) == 0:
+        error_msg = f"OPENAI_API_KEY is not set or is empty. Please set the OPENAI_API_KEY environment variable."
         LOGGER.error(error_msg)
         raise ValueError(error_msg)
     
-    LOGGER.info("create_agent: initializing ChatOllama with model='%s', base_url='%s'", model, Config.OLLAMA_BASE_URL)
-    # Ensure model is passed as a non-empty string
-    llm = ChatOllama(model=str(model).strip(), base_url=Config.OLLAMA_BASE_URL)
-    LOGGER.debug("create_agent: ChatOllama initialized successfully")
+    # Get model and parameters
+    model = Config.OPENAI_MODEL.strip() if Config.OPENAI_MODEL else "gpt-4o-mini"
+    temperature = Config.OPENAI_TEMPERATURE
+    max_tokens = Config.OPENAI_MAX_TOKENS
+    base_url = Config.OPENAI_BASE_URL.strip() if Config.OPENAI_BASE_URL else None
+    
+    LOGGER.info("create_agent: initializing ChatOpenAI with model='%s', temperature=%s, max_tokens=%s", 
+                model, temperature, max_tokens)
+    
+    # Initialize OpenAI chat model
+    llm_kwargs = {
+        "model": model,
+        "api_key": api_key,
+        "temperature": temperature,
+    }
+    if max_tokens:
+        llm_kwargs["max_tokens"] = max_tokens
+    if base_url:
+        llm_kwargs["base_url"] = base_url
+    
+    llm = ChatOpenAI(**llm_kwargs)
+    LOGGER.debug("create_agent: ChatOpenAI initialized successfully")
 
     # Combine all three prompt components into one template
     # Note: Using string concatenation (not f-strings) to preserve template variables
@@ -250,19 +357,11 @@ def extract_token_usage(response) -> Tuple[int, int]:
         if hasattr(response, 'response_metadata'):
             metadata = response.response_metadata
             if metadata:
-                # Ollama typically provides token usage in different formats
-                # Try common field names
+                # OpenAI provides token usage in response_metadata['token_usage']
                 if 'token_usage' in metadata:
                     token_usage = metadata['token_usage']
                     input_tokens = token_usage.get('prompt_tokens', token_usage.get('input_tokens', 0))
                     output_tokens = token_usage.get('completion_tokens', token_usage.get('output_tokens', 0))
-                elif 'prompt_tokens' in metadata:
-                    input_tokens = metadata.get('prompt_tokens', 0)
-                    output_tokens = metadata.get('completion_tokens', metadata.get('eval_count', 0))
-                elif 'eval_count' in metadata:
-                    # Ollama format: eval_count is output tokens, prompt_eval_count is input tokens
-                    output_tokens = metadata.get('eval_count', 0)
-                    input_tokens = metadata.get('prompt_eval_count', 0)
         
         # Also check if response has usage_metadata attribute (some LangChain versions)
         if hasattr(response, 'usage_metadata'):
@@ -373,9 +472,12 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         query = response[6:].strip()
         LOGGER.info("🔍 Fetching data for: %s", query)
         data = fetch_people(query)
+        
+        # Mask sensitive data (mobile numbers and emails) before using in follow-up
+        masked_data = mask_sensitive_data(data)
 
         follow_up = (
-            f"Here are the search results for '{query}': {data}\n"
+            f"Here are the search results for '{query}': {masked_data}\n"
             "Please summarise the key opportunities for the agent."
         )
 
@@ -504,10 +606,10 @@ def main():
     logging.getLogger("langchain").setLevel(logging.ERROR)
     logging.getLogger("langchain_core").setLevel(logging.ERROR)
     logging.getLogger("langchain_community").setLevel(logging.ERROR)
-    logging.getLogger("langchain_ollama").setLevel(logging.ERROR)
+    logging.getLogger("langchain_openai").setLevel(logging.ERROR)
     
     import uvicorn
-    LOGGER.info("Starting AI Agent (model: %s) API server on %s:%d", Config.OLLAMA_MODEL, Config.SERVER_HOST, Config.SERVER_PORT)
+    LOGGER.info("Starting AI Agent (model: %s) API server on %s:%d", Config.OPENAI_MODEL, Config.SERVER_HOST, Config.SERVER_PORT)
     uvicorn.run(app, host=Config.SERVER_HOST, port=Config.SERVER_PORT)
 
 

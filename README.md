@@ -101,6 +101,16 @@ The agent service runs on port 8070 by default. Configure the frontend to use it
 VITE_AGENT_URL=http://localhost:8070
 ```
 
+Environment variables:
+
+- `OLLAMA_MODEL` (default `llama3:latest`) - The Ollama model to use (e.g., `llama3:latest`, `gemma3:1b`, `qwen3:0.6b`)
+- `OLLAMA_BASE_URL` (default `http://localhost:11434`) - The base URL for the Ollama service
+- `FETCH_URL` (default `http://localhost:8090/search/smart`) - The URL for the search service SmartSearch endpoint
+- `PROFILE_URL` (default `http://localhost:8080`) - The URL for the profile service
+- `SERVER_HOST` (default `0.0.0.0`) - The host address to bind the server to
+- `SERVER_PORT` (default `8070`) - The port number to run the server on
+- `CORS_ORIGINS` (default `http://localhost:5173,http://localhost:3000`) - Comma-separated list of allowed CORS origins
+
 ## Docker Compose (optional)
 
 See `docker-compose.yml` for a containerised setup that runs the frontend, both Go services, and Elasticsearch together. Update the Ollama endpoint to match your host environment.
