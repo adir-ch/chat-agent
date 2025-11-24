@@ -22,6 +22,15 @@ class Config:
     LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "chat-agent")
     LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_ENDPOINT", "")
     
+    # External Model Configuration (OpenAI)
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+    _openai_temperature = os.getenv("OPENAI_TEMPERATURE", "0.7")
+    OPENAI_TEMPERATURE = float(_openai_temperature) if _openai_temperature else 0.7
+    _openai_max_tokens = os.getenv("OPENAI_MAX_TOKENS", "")
+    OPENAI_MAX_TOKENS = int(_openai_max_tokens) if _openai_max_tokens else None
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+    
     # Service URLs
     FETCH_URL = os.getenv("FETCH_URL", "http://localhost:8090/search/smart")
     PROFILE_URL = os.getenv("PROFILE_URL", "http://localhost:8080")

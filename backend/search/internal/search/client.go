@@ -59,7 +59,7 @@ func SmartSearch(ctx context.Context, query string, logger zerolog.Logger) ([]Da
 	// Build JSON payload matching new API format
 	payload := map[string]interface{}{
 		"page":     0,
-		"size":     200,
+		"size":     30,
 		"querytag": "json",
 		"request": []map[string]interface{}{
 			{
