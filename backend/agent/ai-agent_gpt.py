@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import requests
+import time
 from datetime import datetime, UTC
 from typing import Dict, Tuple
 from dataclasses import dataclass
@@ -456,6 +457,7 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
     request_output_tokens = 0
 
     # First invoke with LangSmith trace context
+    start_time = time.time()
     response_obj = runnable.invoke(
         inputs,
         config={
@@ -469,6 +471,8 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
             "run_name": f"chat-{session_id}-initial",
         },
     )
+    elapsed_time = time.time() - start_time
+    LOGGER.info("Model response time (first invoke): %.3f seconds", elapsed_time)
     response = response_obj.content.strip()
     
     # Track and log token usage, accumulate for this request
@@ -482,6 +486,8 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         query = response[6:].strip()
         LOGGER.info("🔍 Fetching data for: %s", query)
         data = fetch_people(query)
+        LOGGER.info("Data Received size: %d", len(data))
+
         
         # Parse JSON response
         try:
@@ -556,6 +562,7 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
             )
 
         # Second invoke with LangSmith trace context
+        start_time2 = time.time()
         response_obj2 = runnable.invoke(
             {
                 "agent_name": profile.agent_name,
@@ -575,6 +582,8 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
                 "run_name": f"chat-{session_id}-followup",
             },
         )
+        elapsed_time2 = time.time() - start_time2
+        LOGGER.info("Model response time (second invoke): %.3f seconds", elapsed_time2)
         response = response_obj2.content.strip()
         
         # Track and log token usage, accumulate for this request
