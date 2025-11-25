@@ -11,7 +11,7 @@ SEARCH_BIN := $(SEARCH_DIR)/bin/search
 PROFILE_LDFLAGS := -ldflags "-X chat-agent/backend/profile/internal/version.BuildVersion=$(GIT_VERSION)"
 SEARCH_LDFLAGS := -ldflags "-X chat-agent/backend/search/internal/version.BuildVersion=$(GIT_VERSION)"
 
-.PHONY: all build profile search clean test test-search test-profile seed-profile
+.PHONY: all build profile search clean test test-search test-profile init-db seed-profile
 
 all: build
 
@@ -49,6 +49,9 @@ test-profile:
 	@echo "Running profile service tests..."
 	@bash tests/profile-test.sh
 
-seed-profile:
+init-db:
+	@echo "Initializing profile database..."
 	@bash $(PROFILE_DIR)/scripts/init-db.sh $(dir $(PROFILE_BIN))profile.db
+
+seed-profile: init-db
 
