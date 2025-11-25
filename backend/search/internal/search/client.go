@@ -46,7 +46,7 @@ type SmartSearchResponse struct {
 }
 
 // SmartSearch performs the API call and extracts the required fields
-func SmartSearch(ctx context.Context, query string, logger zerolog.Logger) ([]DataItem, error) {
+func SmartSearch(ctx context.Context, query string, size int, logger zerolog.Logger) ([]DataItem, error) {
 	// Read API key from env
 	apiKey := os.Getenv("ID4ME_API_KEY")
 	if apiKey == "" {
@@ -59,7 +59,7 @@ func SmartSearch(ctx context.Context, query string, logger zerolog.Logger) ([]Da
 	// Build JSON payload matching new API format
 	payload := map[string]interface{}{
 		"page":     0,
-		"size":     15,
+		"size":     size,
 		"querytag": "json",
 		"request": []map[string]interface{}{
 			{

@@ -10,11 +10,15 @@ import (
 )
 
 type Repository struct {
-	DB *sql.DB
+	DB            *sql.DB
+	ListingsLimit int
 }
 
-func NewRepository(db *sql.DB) *Repository {
-	return &Repository{DB: db}
+func NewRepository(db *sql.DB, listingsLimit int) *Repository {
+	return &Repository{
+		DB:            db,
+		ListingsLimit: listingsLimit,
+	}
 }
 
 func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*models.AgentProfile, error) {
@@ -36,7 +40,8 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 	}
 
 	rows, err := r.DB.QueryContext(ctx,
-		`SELECT address, suburb, postcode, status, update_date FROM property_listings WHERE agent_id = ? LIMIT 5`,
+		`SELECT address, suburb, postcode, status, update_date FROM property_listings WHERE agent_id = ? LIMIT ?`,
+		agentID, r.ListingsLimit,
 	)
 	if err != nil {
 		return nil, err
