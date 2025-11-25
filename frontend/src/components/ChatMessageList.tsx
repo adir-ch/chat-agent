@@ -33,10 +33,10 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
   
   return (
     <div
-      className={`max-w-[75%] px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
+      className={`max-w-[75%] min-w-0 px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
     >
       {message.role === 'assistant' ? (
-        <div className="prose prose-invert prose-sm max-w-none leading-relaxed">
+        <div className="prose prose-invert prose-sm max-w-none leading-relaxed min-w-0 overflow-x-auto">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -66,7 +66,7 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
                   </code>
                 );
               },
-              pre: ({ node, ...props }) => <pre className="bg-zinc-800 p-3 rounded-lg overflow-x-auto mb-2 text-zinc-100" {...props} />,
+              pre: ({ node, ...props }) => <pre className="bg-zinc-800 p-3 rounded-lg overflow-x-auto mb-2 text-zinc-100 whitespace-pre" {...props} />,
               // Links
               a: ({ node, ...props }) => <a className="text-blue-400 hover:text-blue-300 underline" {...props} />,
               // Blockquotes
@@ -95,7 +95,7 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
           </ReactMarkdown>
         </div>
       ) : (
-        <p className="whitespace-pre-wrap leading-relaxed text-zinc-100">
+        <p className="whitespace-pre-wrap leading-relaxed text-zinc-100 break-words overflow-x-auto">
           {message.content}
         </p>
       )}

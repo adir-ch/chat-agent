@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, useRef } from 'react';
 import { ChatInput, type ChatInputHandle } from './components/ChatInput';
 import { ChatMessageList } from './components/ChatMessageList';
 import { AgentSelection } from './components/AgentSelection';
+import { Sidebar } from './components/Sidebar';
 import { sendChatMessage } from './services/api';
 import type { ChatMessage } from './types';
 
@@ -11,6 +12,7 @@ export default function App() {
   const [isLoading, setLoading] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedAgentName, setSelectedAgentName] = useState<string | null>(null);
+  const [showSuggestedQuestion, setShowSuggestedQuestion] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
 
   const sortedMessages = useMemo(
@@ -23,6 +25,18 @@ export default function App() {
     setSelectedAgentName(agentName);
     setMessages([]);
     setError(null);
+    setShowSuggestedQuestion(true);
+  }, []);
+
+  const handleNewChat = useCallback(() => {
+    // Reset all state to go back to agent selection
+    setSelectedAgentId(null);
+    setSelectedAgentName(null);
+    setMessages([]);
+    setError(null);
+    setLoading(false);
+    setShowSuggestedQuestion(false);
+    // Focus will be handled by AgentSelection component
   }, []);
 
   const handleSend = useCallback(
@@ -42,6 +56,8 @@ export default function App() {
       setMessages((prev) => [...prev, userMessage]);
       setLoading(true);
       setError(null);
+      // Hide suggested question after sending any message
+      setShowSuggestedQuestion(false);
 
       try {
         const response = await sendChatMessage({
@@ -73,52 +89,68 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col text-zinc-100 overflow-hidden">
-      <header className="px-6 pt-8 pb-4 flex-shrink-0">
-        <div className="w-[75%] mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              {selectedAgentName ? selectedAgentName : 'Agent Assist'}
-            </h1>
-            <p className="text-sm text-zinc-500">
-              {selectedAgentName
-                ? 'Personalised insights powered by your local data.'
-                : 'Personalised insights powered by your local data.'}
-            </p>
-          </div>
-          <span className="text-xs text-zinc-500 uppercase tracking-widest">BETA</span>
-        </div>
-      </header>
+    <div className="h-screen bg-zinc-950 flex text-zinc-100 overflow-hidden">
+      {/* Sidebar */}
+      <Sidebar onNewChat={handleNewChat} />
 
-      <main className="flex-1 flex flex-col items-stretch overflow-hidden min-h-0">
-        {selectedAgentId ? (
-          <div className="flex-1 flex justify-center min-h-0 overflow-hidden">
-            <div className="w-[75%] bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col h-full">
-              {(() => {
-                // Debug logging to verify prop passing
-                console.log('App - Passing to ChatMessageList:', {
-                  selectedAgentName,
-                  hasSelectedAgentName: !!selectedAgentName,
-                  messagesCount: sortedMessages.length
-                });
-                return null;
-              })()}
-              <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
-              <div className="flex-shrink-0 border-t border-zinc-800/60">
-                <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="px-6 pt-8 pb-4 flex-shrink-0 border-b border-zinc-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">
+                {selectedAgentName ? selectedAgentName : 'Agent Assist'}
+              </h1>
+              <p className="text-sm text-zinc-500">
+                {selectedAgentName
+                  ? 'Personalised insights powered by your local data.'
+                  : 'Personalised insights powered by your local data.'}
+              </p>
+            </div>
+            <span className="text-xs text-zinc-500 uppercase tracking-widest">BETA</span>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col items-stretch overflow-hidden min-h-0">
+          {selectedAgentId ? (
+            <div className="flex-1 flex min-h-0 overflow-hidden px-4 py-6">
+              <div className="w-full bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col h-full">
+                {(() => {
+                  // Debug logging to verify prop passing
+                  console.log('App - Passing to ChatMessageList:', {
+                    selectedAgentName,
+                    hasSelectedAgentName: !!selectedAgentName,
+                    messagesCount: sortedMessages.length
+                  });
+                  return null;
+                })()}
+                <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
+                <div className="flex-shrink-0 border-t border-zinc-800/60 flex flex-col">
+                  {showSuggestedQuestion && messages.length === 0 && !isLoading && (
+                    <div className="px-6 pt-3 pb-2 flex justify-center">
+                      <button
+                        onClick={() => handleSend('Show me properties in my area')}
+                        className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600"
+                      >
+                        Show me properties in my area
+                      </button>
+                    </div>
+                  )}
+                  <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <AgentSelection onSelect={handleAgentSelect} />
-        )}
-      </main>
+          ) : (
+            <AgentSelection onSelect={handleAgentSelect} />
+          )}
+        </main>
 
-      {error ? (
-        <div className="fixed bottom-6 right-6 bg-red-500/90 text-white px-4 py-2 rounded-md shadow-lg">
-          {error}
-        </div>
-      ) : null}
+        {error ? (
+          <div className="fixed bottom-6 right-6 bg-red-500/90 text-white px-4 py-2 rounded-md shadow-lg z-50">
+            {error}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

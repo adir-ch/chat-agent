@@ -37,7 +37,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSend, disabled 
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full mx-auto px-6 py-4"
+      className="w-[70%] mx-auto px-6 py-4"
     >
       <div className="bg-surface border border-zinc-800 rounded-2xl shadow-lg flex items-center py-3 px-4 gap-3">
         <input
