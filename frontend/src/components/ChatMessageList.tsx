@@ -131,23 +131,24 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    // Try scrolling the anchor element into view first (more reliable)
-    if (bottomAnchorRef.current) {
-      bottomAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    } else if (scrollContainerRef.current) {
-      // Fallback to scrolling the container
-      const container = scrollContainerRef.current;
-      container.scrollTop = container.scrollHeight;
-    }
+    // Use requestAnimationFrame for smoother scrolling
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        const container = scrollContainerRef.current;
+        // Scroll to the absolute bottom of the container
+        // The input box is outside this container, so scrolling here won't affect it
+        container.scrollTop = container.scrollHeight;
+      }
+    });
   }, []);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or loading state changes
   useEffect(() => {
     if (messages.length > 0 || isLoading) {
-      // Use setTimeout to ensure DOM has updated
+      // Use setTimeout to ensure DOM has updated, then use requestAnimationFrame for smooth scroll
       const timeoutId = setTimeout(() => {
         scrollToBottom();
-      }, 50);
+      }, 150);
       return () => clearTimeout(timeoutId);
     }
   }, [messages.length, isLoading, scrollToBottom]);
@@ -156,6 +157,7 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
     <div 
       ref={scrollContainerRef}
       className="flex-1 flex flex-col gap-4 overflow-y-auto px-6 py-6"
+      style={{ scrollBehavior: 'smooth' }}
     >
       {messages.map((msg) => (
         <ChatMessageItem key={msg.id} message={msg} agentName={agentName} />
@@ -163,7 +165,7 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
       {isLoading ? (
         <div className="mx-auto text-sm text-zinc-500 animate-pulse">Thinking…</div>
       ) : null}
-      <div ref={bottomAnchorRef} />
+      <div ref={bottomAnchorRef} className="h-4 flex-shrink-0" />
     </div>
   );
 });

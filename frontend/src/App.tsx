@@ -73,8 +73,8 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col text-zinc-100">
-      <header className="px-6 pt-8 pb-4">
+    <div className="h-screen bg-zinc-950 flex flex-col text-zinc-100 overflow-hidden">
+      <header className="px-6 pt-8 pb-4 flex-shrink-0">
         <div className="w-[75%] mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
@@ -90,10 +90,10 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-stretch">
+      <main className="flex-1 flex flex-col items-stretch overflow-hidden min-h-0">
         {selectedAgentId ? (
-          <div className="flex-1 flex justify-center">
-            <div className="w-[75%] bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col">
+          <div className="flex-1 flex justify-center min-h-0 overflow-hidden">
+            <div className="w-[75%] bg-zinc-950/80 border border-zinc-900/60 rounded-3xl overflow-hidden flex flex-col h-full">
               {(() => {
                 // Debug logging to verify prop passing
                 console.log('App - Passing to ChatMessageList:', {
@@ -104,7 +104,9 @@ export default function App() {
                 return null;
               })()}
               <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
-              <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
+              <div className="flex-shrink-0 border-t border-zinc-800/60">
+                <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
+              </div>
             </div>
           </div>
         ) : (
