@@ -37,12 +37,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSend, disabled 
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full mx-auto px-6 pb-8"
+      className="w-[70%] mx-auto px-6 py-4"
     >
       <div className="bg-surface border border-zinc-800 rounded-2xl shadow-lg flex items-center py-3 px-4 gap-3">
         <input
           ref={inputRef}
-          className="flex-1 bg-transparent text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+          className={`flex-1 bg-transparent placeholder:text-zinc-500 focus:outline-none ${
+            disabled || pending ? 'text-zinc-500' : 'text-zinc-100'
+          }`}
           placeholder="Ask about your properties, clients, or market insights…"
           value={value}
           onChange={(event) => setValue(event.target.value)}

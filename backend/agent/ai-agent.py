@@ -371,7 +371,7 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
     request_input_tokens += input_tokens1
     request_output_tokens += output_tokens1
 
-    if response.upper().startswith("FETCH:"):
+    if response.upper().startswith("FETCH"):
         LOGGER.info(">>>>>>>> first invoke: %s", response)
 
         query = response[6:].strip()

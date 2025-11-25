@@ -33,10 +33,10 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
   
   return (
     <div
-      className={`max-w-[75%] px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
+      className={`max-w-[75%] min-w-0 px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
     >
       {message.role === 'assistant' ? (
-        <div className="prose prose-invert prose-sm max-w-none leading-relaxed">
+        <div className="prose prose-invert prose-sm max-w-none leading-relaxed min-w-0 overflow-x-auto">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -66,7 +66,7 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
                   </code>
                 );
               },
-              pre: ({ node, ...props }) => <pre className="bg-zinc-800 p-3 rounded-lg overflow-x-auto mb-2 text-zinc-100" {...props} />,
+              pre: ({ node, ...props }) => <pre className="bg-zinc-800 p-3 rounded-lg overflow-x-auto mb-2 text-zinc-100 whitespace-pre" {...props} />,
               // Links
               a: ({ node, ...props }) => <a className="text-blue-400 hover:text-blue-300 underline" {...props} />,
               // Blockquotes
@@ -95,7 +95,7 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
           </ReactMarkdown>
         </div>
       ) : (
-        <p className="whitespace-pre-wrap leading-relaxed text-zinc-100">
+        <p className="whitespace-pre-wrap leading-relaxed text-zinc-100 break-words overflow-x-auto">
           {message.content}
         </p>
       )}
@@ -131,23 +131,24 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    // Try scrolling the anchor element into view first (more reliable)
-    if (bottomAnchorRef.current) {
-      bottomAnchorRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    } else if (scrollContainerRef.current) {
-      // Fallback to scrolling the container
-      const container = scrollContainerRef.current;
-      container.scrollTop = container.scrollHeight;
-    }
+    // Use requestAnimationFrame for smoother scrolling
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        const container = scrollContainerRef.current;
+        // Scroll to the absolute bottom of the container
+        // The input box is outside this container, so scrolling here won't affect it
+        container.scrollTop = container.scrollHeight;
+      }
+    });
   }, []);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or loading state changes
   useEffect(() => {
     if (messages.length > 0 || isLoading) {
-      // Use setTimeout to ensure DOM has updated
+      // Use setTimeout to ensure DOM has updated, then use requestAnimationFrame for smooth scroll
       const timeoutId = setTimeout(() => {
         scrollToBottom();
-      }, 50);
+      }, 150);
       return () => clearTimeout(timeoutId);
     }
   }, [messages.length, isLoading, scrollToBottom]);
@@ -156,6 +157,7 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
     <div 
       ref={scrollContainerRef}
       className="flex-1 flex flex-col gap-4 overflow-y-auto px-6 py-6"
+      style={{ scrollBehavior: 'smooth' }}
     >
       {messages.map((msg) => (
         <ChatMessageItem key={msg.id} message={msg} agentName={agentName} />
@@ -163,7 +165,7 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
       {isLoading ? (
         <div className="mx-auto text-sm text-zinc-500 animate-pulse">Thinking…</div>
       ) : null}
-      <div ref={bottomAnchorRef} />
+      <div ref={bottomAnchorRef} className="h-4 flex-shrink-0" />
     </div>
   );
 });
