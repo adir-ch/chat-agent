@@ -39,7 +39,7 @@ func NewServer(cfg *config.Config, client *search.Client, logger zerolog.Logger)
 		query := r.URL.Query().Get("q")
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		results, err := search.SmartSearch(ctx, query, logger)
+		results, err := search.SmartSearch(ctx, query, cfg.SmartSearchSize, logger)
 		if err != nil {
 			logger.Error().Err(err).Msg("property search failed")
 			http.Error(w, "search error", http.StatusBadGateway)

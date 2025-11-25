@@ -21,7 +21,9 @@ QUERY_PROMPT = (
     "   • Follow these rules:\n"
     "     - Never include full street addresses or commas.\n"
     "     - Use only a suburb or postcode.\n"
+    "     - Don't use suburb and postcode together.\n"
     "     - Output nothing except the single FETCH line.\n"
+    "     - The FETCH line should contain only the location to search for, no other text.\n"
 )
 
 ANALYSIS_PROMPT = (

@@ -18,7 +18,7 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config, dbConn *sql.DB, logger zerolog.Logger) *Server {
-	repo := db.NewRepository(dbConn)
+	repo := db.NewRepository(dbConn, cfg.ListingsLimit)
 
 	profileHandler := handler.NewProfileHandler(repo, logger)
 	conversationHandler := handler.NewConversationHandler(repo, logger)

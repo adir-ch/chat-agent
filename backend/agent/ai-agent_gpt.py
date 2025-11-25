@@ -1,7 +1,9 @@
+import json
 import logging
 import os
 import re
 import requests
+import time
 from datetime import datetime, UTC
 from typing import Dict, Tuple
 from dataclasses import dataclass
@@ -21,6 +23,15 @@ from pydantic import BaseModel, ConfigDict
 
 from prompts import SYSTEM_PROMPT, QUERY_PROMPT, ANALYSIS_PROMPT
 from config import Config
+
+# Conditionally import EmbeddingService only if embeddings are enabled
+EmbeddingService = None
+if Config.USE_EMBEDDINGS:
+    try:
+        from embeddings import EmbeddingService
+    except ImportError as e:
+        logging.warning(f"Failed to import EmbeddingService: {e}. Embeddings will be disabled.")
+        Config.USE_EMBEDDINGS = False
 
 # Configure LangSmith tracing
 os.environ["LANGCHAIN_TRACING_V2"] = Config.LANGCHAIN_TRACING_V2
@@ -446,6 +457,7 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
     request_output_tokens = 0
 
     # First invoke with LangSmith trace context
+    start_time = time.time()
     response_obj = runnable.invoke(
         inputs,
         config={
@@ -459,6 +471,8 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
             "run_name": f"chat-{session_id}-initial",
         },
     )
+    elapsed_time = time.time() - start_time
+    LOGGER.info("Model response time (first invoke): %.3f seconds", elapsed_time)
     response = response_obj.content.strip()
     
     # Track and log token usage, accumulate for this request
@@ -472,16 +486,83 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
         query = response[6:].strip()
         LOGGER.info("🔍 Fetching data for: %s", query)
         data = fetch_people(query)
-        
-        # Mask sensitive data (mobile numbers and emails) before using in follow-up
-        masked_data = mask_sensitive_data(data)
+        LOGGER.info("Data Received size: %d", len(data))
 
-        follow_up = (
-            f"Here are the search results for '{query}': {masked_data}\n"
-            "Please summarise the key opportunities for the agent."
-        )
+        
+        # Parse JSON response
+        try:
+            data_items = json.loads(data)
+            if not isinstance(data_items, list):
+                LOGGER.warning(f"Expected list but got {type(data_items)}, wrapping in list")
+                data_items = [data_items] if data_items else []
+        except json.JSONDecodeError as e:
+            LOGGER.error(f"Failed to parse JSON from fetch_people: {e}")
+            LOGGER.debug(f"Response data: {data[:200]}...")  # Log first 200 chars
+            data_items = []
+        except Exception as e:
+            LOGGER.error(f"Unexpected error parsing JSON: {e}")
+            data_items = []
+        
+        # Handle empty results
+        if not data_items:
+            response = "No results found for your query."
+            return response, request_input_tokens, request_output_tokens
+        
+        # Use embeddings if enabled, otherwise use all data
+        if Config.USE_EMBEDDINGS and EmbeddingService is not None:
+            # Generate embeddings and find most relevant records
+            relevant_items = []
+            try:
+                # Initialize embedding service
+                embedding_service = EmbeddingService()
+                
+                # Prepare texts for embedding
+                texts = [embedding_service.prepare_text_for_embedding(item) for item in data_items]
+                
+                # Generate embeddings for all records
+                LOGGER.info(f"Generating embeddings for {len(data_items)} records...")
+                embeddings = embedding_service.generate_embeddings(texts)
+                
+                # Search for most relevant records
+                LOGGER.info(f"Searching for top {Config.EMBEDDING_TOP_K} relevant records...")
+                relevant_items = embedding_service.search_similar(
+                    query=query,
+                    data_items=data_items,
+                    embeddings=embeddings,
+                    top_k=Config.EMBEDDING_TOP_K
+                )
+                
+                LOGGER.info(f"Retrieved {len(relevant_items)} relevant records out of {len(data_items)} total")
+                
+            except Exception as e:
+                LOGGER.error(f"Error generating embeddings or searching: {e}", exc_info=True)
+                # Fallback: use first N records
+                fallback_count = min(Config.EMBEDDING_TOP_K, len(data_items))
+                relevant_items = data_items[:fallback_count]
+                LOGGER.warning(f"Falling back to first {fallback_count} records due to embedding error")
+            
+            # Format relevant records as JSON
+            formatted_data = json.dumps(relevant_items, indent=2)
+            
+            # Mask sensitive data (mobile numbers and emails) before using in follow-up
+            masked_data = mask_sensitive_data(formatted_data)
+
+            follow_up = (
+                f"Here are the most relevant search results for '{query}' (showing {len(relevant_items)} of {len(data_items)} total results): {masked_data}\n"
+                "Please summarise the key opportunities for the agent."
+            )
+        else:
+            # Embeddings disabled - use all data as before
+            # Mask sensitive data (mobile numbers and emails) before using in follow-up
+            masked_data = mask_sensitive_data(data)
+
+            follow_up = (
+                f"Here are the search results for '{query}': {masked_data}\n"
+                "Please summarise the key opportunities for the agent."
+            )
 
         # Second invoke with LangSmith trace context
+        start_time2 = time.time()
         response_obj2 = runnable.invoke(
             {
                 "agent_name": profile.agent_name,
@@ -501,6 +582,8 @@ def process_chat_message(profile: AgentProfile, question: str, session_id: str) 
                 "run_name": f"chat-{session_id}-followup",
             },
         )
+        elapsed_time2 = time.time() - start_time2
+        LOGGER.info("Model response time (second invoke): %.3f seconds", elapsed_time2)
         response = response_obj2.content.strip()
         
         # Track and log token usage, accumulate for this request
