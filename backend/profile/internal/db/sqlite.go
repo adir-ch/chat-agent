@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -17,6 +18,17 @@ func NewSQLite(path string) (*sql.DB, error) {
 		}
 	}
 
+	// Check if database file already exists
+	_, err := os.Stat(path)
+	dbExists := err == nil
+
+	if dbExists {
+		log.Printf("Opening existing database: %s", path)
+	} else {
+		log.Printf("Creating new database: %s", path)
+	}
+
+	// Open database (SQLite will create the file if it doesn't exist, but preserve existing data)
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
@@ -24,4 +36,3 @@ func NewSQLite(path string) (*sql.DB, error) {
 	db.SetMaxOpenConns(1)
 	return db, nil
 }
-

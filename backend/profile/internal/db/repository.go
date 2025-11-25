@@ -36,8 +36,7 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 	}
 
 	rows, err := r.DB.QueryContext(ctx,
-		`SELECT address, suburb, postcode, status, update_date FROM property_listings WHERE agent_id = ?`,
-		agentID,
+		`SELECT address, suburb, postcode, status, update_date FROM property_listings WHERE agent_id = ? LIMIT 5`,
 	)
 	if err != nil {
 		return nil, err
@@ -46,7 +45,7 @@ func (r *Repository) GetAgentProfile(ctx context.Context, agentID string) (*mode
 
 	for rows.Next() {
 		var (
-			listing models.Listing
+			listing       models.Listing
 			updateDateRaw sql.NullString
 		)
 
@@ -101,4 +100,3 @@ func (r *Repository) SaveConversation(ctx context.Context, conv *models.Conversa
 	)
 	return err
 }
-

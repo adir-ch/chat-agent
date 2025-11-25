@@ -31,6 +31,11 @@ class Config:
     OPENAI_MAX_TOKENS = int(_openai_max_tokens) if _openai_max_tokens else None
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
     
+    # Embedding configuration
+    USE_EMBEDDINGS = os.getenv("USE_EMBEDDINGS", "false").lower() == "true"
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    EMBEDDING_TOP_K = int(os.getenv("EMBEDDING_TOP_K", "5"))
+    
     # Service URLs
     FETCH_URL = os.getenv("FETCH_URL", "http://localhost:8090/search/smart")
     PROFILE_URL = os.getenv("PROFILE_URL", "http://localhost:8080")

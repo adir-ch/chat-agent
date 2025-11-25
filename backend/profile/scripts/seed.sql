@@ -2,8 +2,6 @@ INSERT INTO user_info (agent_id, first_name, last_name, agency, area)
 VALUES 
   ('agent-1','Liam','Wolff','STRUD Property','[{"name":"Augustine Heights","postcode":"4300"}]'),
 ('agent-2','Kristie','Sulcs','Boettchers Estate Agents','[{"name":"Augustine Heights","postcode":"4300"}]'),
-('agent-3','Leasing','Team','Homes 4 Rent - COOMERA','[{"name":"Augustine Heights","postcode":"4300"}]'),
-('agent-4','Augustine','Heights Sales and Information Centre','Stockland - Augustine Heights','[{"name":"Augustine Heights","postcode":"4300"}]'),
 ('agent-5','Jesse','Patrick','STRUD Property','[{"name":"Augustine Heights","postcode":"4300"}]'),
 ('agent-6','Phill','Broom','Ray White - Springfield','[{"name":"Augustine Heights","postcode":"4300"}]'),
 ('agent-7','Yanna','Clapham','Ray White - Springfield','[{"name":"Augustine Heights","postcode":"4300"}]'),
@@ -20,7 +18,6 @@ VALUES
 ('agent-18','Amrik','Singh','Prime Place Property - SPRINGFIELD LAKES','[{"name":"Bellbird Park","postcode":"4300"},{"name":"Camira","postcode":"4300"}]'),
 ('agent-19','Harry','Gale','Gale & Co. - SPRINGFIELD LAKES','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
 ('agent-20','Julian','Gale','Gale & Co. - SPRINGFIELD LAKES','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
-('agent-21','Leasing','Team','Purple Cow Real Estate - Greater Springfield','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
 ('agent-22','Tracey','Caruana','McGrath Springfield - Springfield Lakes','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
 ('agent-23','Aveo','Retirement','Aveo - Retirement Living','[{"name":"Springfield","postcode":"4300"}]'),
 ('agent-24','Clare','May','Clare May Real Estate - CAMIRA','[{"name":"Springfield","postcode":"4300"}]'),

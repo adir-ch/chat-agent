@@ -161,7 +161,7 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
         <ChatMessageItem key={msg.id} message={msg} agentName={agentName} />
       ))}
       {isLoading ? (
-        <div className="mx-auto text-sm text-zinc-500 animate-pulse">Generating…</div>
+        <div className="mx-auto text-sm text-zinc-500 animate-pulse">Thinking…</div>
       ) : null}
       <div ref={bottomAnchorRef} />
     </div>
