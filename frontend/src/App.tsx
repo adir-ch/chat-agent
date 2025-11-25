@@ -91,26 +91,10 @@ export default function App() {
   return (
     <div className="h-screen bg-zinc-950 flex text-zinc-100 overflow-hidden">
       {/* Sidebar */}
-      <Sidebar onNewChat={handleNewChat} />
+      <Sidebar onNewChat={handleNewChat} agentName={selectedAgentName} />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="px-6 pt-8 pb-4 flex-shrink-0 border-b border-zinc-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                {selectedAgentName ? selectedAgentName : 'Agent Assist'}
-              </h1>
-              <p className="text-sm text-zinc-500">
-                {selectedAgentName
-                  ? 'Personalised insights powered by your local data.'
-                  : 'Personalised insights powered by your local data.'}
-              </p>
-            </div>
-            <span className="text-xs text-zinc-500 uppercase tracking-widest">BETA</span>
-          </div>
-        </header>
-
         <main className="flex-1 flex flex-col items-stretch overflow-hidden min-h-0">
           {selectedAgentId ? (
             <div className="flex-1 flex min-h-0 overflow-hidden px-4 py-6">
