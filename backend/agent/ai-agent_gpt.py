@@ -185,10 +185,18 @@ def fetch_agent_profile(agent_id: str) -> AgentProfile:
 def mask_sensitive_data(text: str) -> str:
     """
     Mask sensitive data in text:
-    - Mobile numbers: mask the middle 4 digits
+    - Phone numbers: mask the middle 4 digits
     - Email addresses: mask 3-4 letters in the local part (before @)
+    - Dates are NOT masked (e.g., 2024-01-01, 01/01/2024)
     """
     masked_text = text
+    
+    # Common date patterns to exclude from phone masking
+    date_patterns = [
+        r'\d{4}-\d{2}-\d{2}',      # YYYY-MM-DD (e.g., 2024-01-01)
+        r'\d{2}/\d{2}/\d{4}',      # DD/MM/YYYY or MM/DD/YYYY (e.g., 01/01/2024)
+        r'\d{4}/\d{2}/\d{2}',      # YYYY/MM/DD (e.g., 2024/01/01)
+    ]
     
     # Mask mobile numbers - find sequences of digits that look like phone numbers (8-15 digits)
     # Match phone numbers in various formats: +61 412 345 678, 0412 345 678, (04) 1234 5678, etc.
@@ -196,6 +204,12 @@ def mask_sensitive_data(text: str) -> str:
     
     def mask_phone(match):
         phone = match.group(0)
+        
+        # Check if this match looks like a date pattern - if so, don't mask it
+        for date_pattern in date_patterns:
+            if re.match(date_pattern, phone):
+                return phone
+        
         # Extract only digits
         digits = re.sub(r'\D', '', phone)
         

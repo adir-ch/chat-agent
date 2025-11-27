@@ -1,6 +1,7 @@
 INSERT INTO user_info (agent_id, first_name, last_name, agency, area)
 VALUES 
-  ('agent-1','Liam','Wolff','STRUD Property','[{"name":"Augustine Heights","postcode":"4300"}]'),
+('agent-1','Liam','Wolff','STRUD Property','[{"name":"Augustine Heights","postcode":"4300"}]'),
+('agent-3','Adir','Test','iD4me','[{"name":"Bondi","postcode":"2026"}]'),
 ('agent-2','Kristie','Sulcs','Boettchers Estate Agents','[{"name":"Augustine Heights","postcode":"4300"}]'),
 ('agent-5','Jesse','Patrick','STRUD Property','[{"name":"Augustine Heights","postcode":"4300"}]'),
 ('agent-6','Phill','Broom','Ray White - Springfield','[{"name":"Augustine Heights","postcode":"4300"}]'),
@@ -22,12 +23,15 @@ VALUES
 ('agent-23','Aveo','Retirement','Aveo - Retirement Living','[{"name":"Springfield","postcode":"4300"}]'),
 ('agent-24','Clare','May','Clare May Real Estate - CAMIRA','[{"name":"Springfield","postcode":"4300"}]'),
 ('agent-25','Amanda','Heilig','LJ Hooker - Greater Springfield','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
-('agent-26','Gale','& Co Leasing Team','Gale & Co. - SPRINGFIELD LAKES','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
 ('agent-27','Simon','Butcher','THEONSITEMANAGER - Queensland','[{"name":"Springfield","postcode":"4300"},{"name":"Springfield Lakes","postcode":"4300"}]'),
 ('agent-28','Nathalie','Le Brun','La Vie Property Solutions - Springfield Lakes','[{"name":"Springfield Lakes","postcode":"4300"}]'),
 ('agent-29','Lalit','Kumar','Realway Edge - SPRING MOUNTAIN','[{"name":"Springfield Lakes","postcode":"4300"}]');
 INSERT INTO property_listings (agent_id, address, suburb, postcode, status, update_date)
 VALUES
+
+-- Adir Tests listings,
+('agent-3','9 King Street, Bondi, NSW 2026','Bondi','2026','current','2025-11-25-12:00:00'),
+
 -- agent-1 listings,
 ('agent-1','13 Livinus Place Augustine Heights QLD 4300','Augustine Heights','4300','sold','2024-08-29-15:46:27'),
 ('agent-1','133 Benezet Drive Augustine Heights QLD 4300','Augustine Heights','4300','sold','2025-07-16-13:06:35'),
@@ -114,36 +118,6 @@ VALUES
 ('agent-2','9 Finnigan Street Augustine Heights QLD 4300','Augustine Heights','4300','sold','2024-03-27-14:26:09'),
 ('agent-2','93 Benezet Drive Augustine Heights QLD 4300','Augustine Heights','4300','sold','2024-04-19-14:36:54'),
 ('agent-2','Augustine Heights QLD 4300','Augustine Heights','4300','sold','2024-03-02-14:56:39'),
-
--- agent-3 listings,
-('agent-3','16 Aquinas St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-05-07-08:03:59'),
-('agent-3','1/31 Therese Cct Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-03-26-16:50:23'),
-('agent-3','1/31 Therese Cct Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-04-23-14:47:05'),
-('agent-3','2/5 Catherine St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-05-01-14:43:24'),
-('agent-3','11 Therese Cct Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-04-11-22:11:21'),
-('agent-3','2/7 Therese Circuit Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-08-18-08:01:38'),
-('agent-3','42 Ignatius Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-03-20-22:15:45'),
-('agent-3','2/31 Therese Cct Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-03-15-14:46:12'),
-('agent-3','1/3 Catherine St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-11-21-09:34:58'),
-('agent-3','1/6 Ignatius Street Augustine Heights QLD 4300','Augustine Heights','4300','current','2024-10-11-08:31:57'),
-('agent-3','9 Catherine St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-02-21-20:18:05'),
-('agent-3','19 Aquinas Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-05-03-16:27:01'),
-('agent-3','1/14 Tatiana Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-06-29-08:07:09'),
-('agent-3','2/29 erese Circuit Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2023-12-01-08:01:43'),
-('agent-3','2/31 Aquinas St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-01-29-18:12:02'),
-('agent-3','2/6 Ignatius Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-01-16-14:51:13'),
-('agent-3','12 Aquinas St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-11-21-09:34:58'),
-('agent-3','6 Tatiana Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-11-21-09:34:58'),
-('agent-3','2/6 Ignatius Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2023-12-20-08:10:22'),
-('agent-3','22 Aquinas St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-02-22-14:46:09'),
-('agent-3','4 Tatiana Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-01-26-08:03:17'),
-('agent-3','18 Tatiana Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-06-10-21:10:08'),
-('agent-3','1/14 Tatiana Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-07-17-09:41:19'),
-('agent-3','4 Catherine Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-07-04-10:43:12'),
-('agent-3','2/15 Aquinas Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-06-17-02:09:37'),
-('agent-3','1/29 Aquinas Street Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-05-30-13:37:44'),
-('agent-3','23 Aquinas St Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2024-06-11-21:09:04'),
-('agent-3','1/5 Catherine St Augustine Heights QLD 4300','Augustine Heights','4300','current','2025-05-22-21:25:11'),
 
 -- agent-4 listings,
 ('agent-4','Christopher Street and Santa Monica Drive Augustine Heights QLD 4300','Augustine Heights','4300','withdrawn','2025-05-20-14:56:32'),
