@@ -1,0 +1,25 @@
+{
+  "agent_config": {
+    "ollama_model": "llama3:latest",
+    "ollama_base_url": "http://localhost:11434",
+    "langchain_tracing_v2": "true",
+    "langchain_project": "chat-agent",
+    "langchain_endpoint": "",
+    "openai_model": "gpt-5-mini",
+    "openai_temperature": 0.7,
+    "openai_max_tokens": null,
+    "openai_base_url": "",
+    "use_embeddings": false,
+    "embedding_model": "text-embedding-3-small",
+    "embedding_top_k": 5,
+    "fetch_url": "http://localhost:8090/search/smart",
+    "profile_url": "http://localhost:8080",
+    "server_host": "0.0.0.0",
+    "server_port": 8070,
+    "cors_origins": [
+      "http://localhost:5173",
+      "http://localhost:3000"
+    ]
+  }
+}
+
