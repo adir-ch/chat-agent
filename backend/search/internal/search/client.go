@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/rs/zerolog"
 )
@@ -16,9 +17,12 @@ import (
 type DataItem struct {
 	EmailAddress  string `json:"emailaddress"`
 	FullAddress   string `json:"full_address"`
+	Suburb        string `json:"suburb"`
+	Postcode      string `json:"postcode"`
 	FullName      string `json:"full_name"`
 	PhoneLandline string `json:"phone1_landline"`
 	PhoneMobile   string `json:"phone2_mobile"`
+	LastUpdated   string `json:"source_date_dt"`
 }
 
 // RecordResponse represents the nested Record object structure
@@ -47,6 +51,21 @@ type SmartSearchResponse struct {
 
 // SmartSearch performs the API call and extracts the required fields
 func SmartSearch(ctx context.Context, query string, size int, logger zerolog.Logger) ([]DataItem, error) {
+	// Parse query string to extract command and query parts
+	// Format: "command: query" (colon followed by space)
+	command := "query"
+	queryArg := query
+
+	parts := strings.SplitN(query, ": ", 2)
+	if len(parts) == 2 {
+		// Found command and query separated by ": "
+		command = strings.TrimSpace(parts[0])
+		queryArg = strings.TrimSpace(parts[1])
+	} else {
+		// No colon found, use entire string as query with default command
+		queryArg = strings.TrimSpace(query)
+	}
+
 	// Read API key from env
 	apiKey := os.Getenv("ID4ME_API_KEY")
 	if apiKey == "" {
@@ -64,13 +83,14 @@ func SmartSearch(ctx context.Context, query string, size int, logger zerolog.Log
 		"request": []map[string]interface{}{
 			{
 				"id":      0,
-				"command": "query",
-				"arg":     query,
+				"command": command,
+				"arg":     queryArg,
 			},
 		},
 		"index": "search-au",
 	}
 
+	logger.Info().Msgf("payload: %+v", payload)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %v", err)
@@ -122,12 +142,12 @@ func SmartSearch(ctx context.Context, query string, size int, logger zerolog.Log
 	var results []DataItem
 	if len(result.People) > 0 {
 		results = result.People
-		logger.Info().Int("results_received", len(results)).Msg("received results from People field")
+		logger.Info().Int("results_received", len(results)).Msg("received results from People field for command: " + command + " and query: " + queryArg)
 	} else if result.Record != nil && len(result.Record.Record) > 0 {
 		results = result.Record.Record
-		logger.Info().Int("results_received", len(results)).Msg("received results from Record field")
+		logger.Info().Int("results_received", len(results)).Msg("received results from Record field for command: " + command + " and query: " + queryArg)
 	} else {
-		logger.Info().Int("results_received", 0).Msg("no results received from API")
+		logger.Info().Int("results_received", 0).Msg("no results received from API for command: " + command + " and query: " + queryArg)
 	}
 
 	// Check for API errors

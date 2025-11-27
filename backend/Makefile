@@ -49,7 +49,7 @@ test-profile:
 	@echo "Running profile service tests..."
 	@bash tests/profile-test.sh
 
-init-db:
+init-profile-db:
 	@echo "Initializing profile database..."
 	@bash $(PROFILE_DIR)/scripts/init-db.sh $(dir $(PROFILE_BIN))profile.db
 
