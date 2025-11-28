@@ -100,10 +100,14 @@ echo ""
 echo "Creating deployment location directory..."
 mkdir -p "$LOCATION"
 
-# Build services using Makefile
+# Clean and build services using Makefile
+echo ""
+echo "Cleaning previous builds..."
+cd "$BACKEND_DIR"
+make clean
+
 echo ""
 echo "Building services using Makefile..."
-cd "$BACKEND_DIR"
 make build
 
 # Verify binaries were created
