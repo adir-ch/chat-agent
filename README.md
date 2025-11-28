@@ -259,7 +259,7 @@ This script will:
 - Start profile service (port 8080)
 - Start search service (port 8090)
 
-use the `run_ai_agent.sh` script to start the backend services:
+Use the `run_ai_agent.sh` script to start the backend services:
 
 - Set up Python virtual environment for agent service
 - Install Python dependencies
@@ -318,9 +318,34 @@ kill <SEARCH_PID>    # Stop search service
 kill <AGENT_PID>     # Stop agent service
 ```
 
-**Agent Configuration:**
+**Agent Specific Configuration:**
 
 The agent service uses `config.json` for configuration. To view available options:
+
+```json
+"agent_config": {
+    "ollama_model": "llama3:latest",
+    "ollama_base_url": "http://localhost:11434",
+    "langchain_tracing_v2": "true",
+    "langchain_project": "chat-agent",
+    "langchain_endpoint": "",
+    "openai_model": "gpt-5-mini",
+    "openai_temperature": 0.7,
+    "openai_max_tokens": null,
+    "openai_base_url": "",
+    "use_embeddings": true,
+    "embedding_model": "text-embedding-3-small",
+    "embedding_top_k": 5,
+    "fetch_url": "http://localhost:8090/search/smart",
+    "profile_url": "http://localhost:8080",
+    "server_host": "0.0.0.0",
+    "server_port": 8070,
+    "cors_origins": [
+      "http://localhost:5173",
+      "http://localhost:3000"
+    ]
+  }
+```
 
 ```bash
 cd <deployment-location>/backend
@@ -328,6 +353,10 @@ cd <deployment-location>/backend
 ```
 
 Configuration values can be overridden via environment variables. API keys (`LANGCHAIN_API_KEY`, `OPENAI_API_KEY`) must be set via environment variables only.
+If a permenant configuration is needed, change the config.json and restart the service.
+
+#### Prompt Configuration ####
+To change the prompt, edit `prompts.py` and restart the service.
 
 ## Running on Server (Linux)
 
@@ -400,7 +429,7 @@ pip install -r requirements.txt
 deactivate
 ```
 
-### Environment Variables
+### Environment Variables Summary
 
 Set the following environment variables before running the services. You can create a `.env` file or export them in your shell session.
 
@@ -467,54 +496,6 @@ export EMBEDDING_MODEL="text-embedding-3-small"       # Embedding model (default
 export EMBEDDING_TOP_K="5"                            # Top K results (default: 5)
 ```
 
-### Example Setup Script
-
-Create a setup script to export all environment variables:
-
-```bash
-#!/bin/bash
-# setup-env.sh
-
-# Profile Service
-export PROFILE_LISTEN_ADDR=":8080"
-export PROFILE_DB_PATH="./profile.db"
-export PROFILE_LISTINGS_LIMIT="5"
-export OLLAMA_URL="http://localhost:11434"
-export SEARCH_URL="http://localhost:8090"
-
-# Search Service
-export SEARCH_LISTEN_ADDR=":8090"
-export ELASTICSEARCH_URL="http://localhost:9200"
-export ES_INDEX_PEOPLE="people"
-export ES_INDEX_PROPERTY="properties"
-export SMART_SEARCH_SIZE="15"
-export ID4ME_API_KEY="your-api-key-here"
-
-# Agent Service
-export AGENT_MODEL="local"
-export OLLAMA_MODEL="llama3:latest"
-export OLLAMA_BASE_URL="http://localhost:11434"
-export FETCH_URL="http://localhost:8090/search/smart"
-export PROFILE_URL="http://localhost:8080"
-export SERVER_HOST="0.0.0.0"
-export SERVER_PORT="8070"
-export CORS_ORIGINS="http://your-domain.com"
-export LANGCHAIN_TRACING_V2="true"
-export LANGCHAIN_API_KEY="your-langchain-key"
-export LANGCHAIN_PROJECT="chat-agent"
-
-# If using GPT model, uncomment:
-# export AGENT_MODEL="gpt"
-# export OPENAI_API_KEY="your-openai-key"
-```
-
-Source the script before running services:
-```bash
-source setup-env.sh
-./run_services.sh
-./run_ai_agent.sh
-```
-
 ### Nginx Configuration
 
 Configure nginx to serve the frontend and proxy API requests. Example configuration:
@@ -556,7 +537,9 @@ server {
 See `docker-compose.yml` for a containerised setup that runs the frontend, both Go services, and Elasticsearch together. Update the Ollama endpoint to match your host environment.
 
 ## Next steps
-
+- [ ] Support mobile devices (responsive)
+- [ ] Conversations load/save 
+- [ ] LLM response feedback from the users (thumb up/down)
 - [ ] Add auth / agent identity flows
 - [ ] Expand function-calling coverage and error handling
 - [ ] Add unit and integration tests
