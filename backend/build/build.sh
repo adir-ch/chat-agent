@@ -196,6 +196,10 @@ echo ""
 cp "$BACKEND_DIR/build/run_services.sh" "$LOCATION/"
 chmod +x "$LOCATION/run_services.sh"
 
+# Copy run_ai_agent.sh
+cp "$BACKEND_DIR/build/run_ai_agent.sh" "$LOCATION/"
+chmod +x "$LOCATION/run_ai_agent.sh"
+
 # Copy agent files
 echo "Copying agent files to $LOCATION..."
 AGENT_DIR="$BACKEND_DIR/agent"
@@ -244,5 +248,6 @@ echo "  - embeddings.py"
 echo "  - requirements.txt"
 echo "  - run_agent.sh"
 echo "  - run_services.sh"
+echo "  - run_ai_agent.sh"
 echo ""
 
