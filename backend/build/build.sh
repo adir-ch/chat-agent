@@ -12,7 +12,7 @@ usage() {
     echo ""
     echo "  location  - Directory path where services will be deployed"
     echo "  os        - Target operating system: windows, linux, or macos (optional)"
-    echo "              If not specified, builds for the current OS"
+    echo "              If not specified, builds using Go's default environment"
     echo ""
     echo "This script will:"
     echo "  1. Build profile and search services using Makefile"
@@ -34,7 +34,7 @@ TARGET_OS="${2:-}"
 # Initialize BINARY_EXT variable
 BINARY_EXT=""
 
-# Map OS parameter to GOOS and GOARCH
+# Map OS parameter to GOOS and GOARCH if provided
 if [ -n "$TARGET_OS" ]; then
     case "$TARGET_OS" in
         windows)
@@ -44,7 +44,7 @@ if [ -n "$TARGET_OS" ]; then
             ;;
         linux)
             export GOOS=linux
-            export GOARCH=amd64
+            export GOARCH=arm64
             BINARY_EXT=""
             ;;
         macos|darwin)
@@ -58,30 +58,18 @@ if [ -n "$TARGET_OS" ]; then
             exit 1
             ;;
     esac
-    echo "Building for target OS: $TARGET_OS (GOOS=$GOOS, GOARCH=$GOARCH)"
+    
+    # Set CGO_ENABLED if not already set (default to 1 for non-Linux, 0 for Linux)
+    if [ "$GOOS" = "linux" ] && [ -z "$CGO_ENABLED" ]; then
+        export CGO_ENABLED=1
+    elif [ -z "$CGO_ENABLED" ]; then
+        export CGO_ENABLED=1
+    fi
+    
+    echo "Building for target OS: $TARGET_OS (GOOS=$GOOS, GOARCH=$GOARCH, CGO_ENABLED=$CGO_ENABLED)"
 else
-    # Detect current OS
-    CURRENT_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    case "$CURRENT_OS" in
-        linux*)
-            export GOOS=linux
-            BINARY_EXT=""
-            ;;
-        darwin*)
-            export GOOS=darwin
-            BINARY_EXT=""
-            ;;
-        msys*|cygwin*|mingw*)
-            export GOOS=windows
-            BINARY_EXT=".exe"
-            ;;
-        *)
-            export GOOS=linux
-            BINARY_EXT=""
-            ;;
-    esac
-    export GOARCH=amd64
-    echo "Building for current OS: $GOOS (GOARCH=$GOARCH)"
+    # Use Go's default environment (no explicit OS set)
+    echo "Building using Go's default environment"
 fi
 
 # Get the script directory and backend directory
@@ -111,8 +99,22 @@ echo "Building services using Makefile..."
 make build
 
 # Verify binaries were created
-PROFILE_BIN="$BACKEND_DIR/profile/bin/profile$BINARY_EXT"
-SEARCH_BIN="$BACKEND_DIR/search/bin/search$BINARY_EXT"
+# If OS was specified, use BINARY_EXT, otherwise check for both .exe and no extension
+if [ -n "$TARGET_OS" ]; then
+    PROFILE_BIN="$BACKEND_DIR/profile/bin/profile$BINARY_EXT"
+    SEARCH_BIN="$BACKEND_DIR/search/bin/search$BINARY_EXT"
+else
+    # Try to find binary (could be .exe on Windows or no extension on Unix)
+    if [ -f "$BACKEND_DIR/profile/bin/profile.exe" ]; then
+        PROFILE_BIN="$BACKEND_DIR/profile/bin/profile.exe"
+        SEARCH_BIN="$BACKEND_DIR/search/bin/search.exe"
+        BINARY_EXT=".exe"
+    else
+        PROFILE_BIN="$BACKEND_DIR/profile/bin/profile"
+        SEARCH_BIN="$BACKEND_DIR/search/bin/search"
+        BINARY_EXT=""
+    fi
+fi
 
 if [ ! -f "$PROFILE_BIN" ]; then
     echo "Error: Profile binary not found at $PROFILE_BIN"
@@ -133,7 +135,7 @@ cp "$PROFILE_BIN" "$LOCATION/profile$BINARY_EXT"
 cp "$SEARCH_BIN" "$LOCATION/search$BINARY_EXT"
 
 # Only set executable permissions on Unix-like systems
-if [ "$GOOS" != "windows" ]; then
+if [ -z "$GOOS" ] || [ "$GOOS" != "windows" ]; then
     chmod +x "$LOCATION/profile$BINARY_EXT"
     chmod +x "$LOCATION/search$BINARY_EXT"
 fi
@@ -224,8 +226,13 @@ echo "=========================================="
 echo "Deployment location: $LOCATION"
 echo ""
 echo "Files created:"
-echo "  - profile$BINARY_EXT (binary for $GOOS/$GOARCH)"
-echo "  - search$BINARY_EXT (binary for $GOOS/$GOARCH)"
+if [ -n "$TARGET_OS" ]; then
+    echo "  - profile$BINARY_EXT (binary for $GOOS/$GOARCH)"
+    echo "  - search$BINARY_EXT (binary for $GOOS/$GOARCH)"
+else
+    echo "  - profile$BINARY_EXT (binary)"
+    echo "  - search$BINARY_EXT (binary)"
+fi
 echo "  - profile.db (database)"
 echo "  - init-db.sql"
 echo "  - seed.sql"

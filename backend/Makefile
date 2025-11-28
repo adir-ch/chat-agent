@@ -1,8 +1,9 @@
 GO ?= go
 
-# Support cross-compilation via GOOS and GOARCH environment variables
+# Support cross-compilation via GOOS, GOARCH, and CGO_ENABLED environment variables
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
+CGO_ENABLED ?= $(shell go env CGO_ENABLED)
 
 GIT_VERSION := $(shell git describe --tags --dirty --always 2>/dev/null || echo unknown)
 
@@ -23,7 +24,7 @@ PROFILE_LDFLAGS := -ldflags "-X chat-agent/backend/profile/internal/version.Buil
 SEARCH_LDFLAGS := -ldflags "-X chat-agent/backend/search/internal/version.BuildVersion=$(GIT_VERSION)"
 
 # Build flags for cross-compilation
-BUILD_FLAGS := GOOS=$(GOOS) GOARCH=$(GOARCH)
+BUILD_FLAGS := GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=$(CGO_ENABLED)
 
 .PHONY: all build profile search clean test test-search test-profile init-db seed-profile
 

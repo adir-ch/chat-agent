@@ -11,7 +11,7 @@ usage() {
     echo ""
     echo "  location  - Directory path where the application will be deployed"
     echo "  os        - Target operating system for backend: windows, linux, or macos (optional)"
-    echo "              If not specified, builds for the current OS"
+    echo "              If not specified, builds using Go's default environment"
     echo ""
     echo "This script will:"
     echo "  1. Build backend services and deploy to <location>/backend"
