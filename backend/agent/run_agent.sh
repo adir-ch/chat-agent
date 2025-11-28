@@ -194,7 +194,7 @@ if [ "$MODEL_NAME" == "local" ]; then
     echo ""
     
     # Run local agent
-    python ai-agent.py
+    python ai_agent_local.py
 fi
 
 # ============================================================================
@@ -222,6 +222,6 @@ if [ "$MODEL_NAME" == "gpt" ]; then
     echo ""
     
     # Run GPT agent
-    python ai-agent_gpt.py
+    python ai_agent_external.py
 fi
 

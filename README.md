@@ -108,7 +108,7 @@ pip install -r requirements.txt
 **Running:**
 ```bash
 source venv/bin/activate
-python ai-agent.py
+python ai_agent_local.py
 # or for GPT model
 ./run_agent.sh gpt
 ```
@@ -231,12 +231,12 @@ This will:
 **Deployment structure:**
 ```
 <deployment-location>/
-├── backend/          # Backend services and agent files
+├── backend/         # Backend services and agent files
 │   ├── profile      # Profile service binary
 │   ├── search       # Search service binary
 │   ├── profile.db   # SQLite database
-│   ├── ai-agent.py
-│   ├── ai-agent_gpt.py
+│   ├── ai_agent_local.py
+│   ├── ai_agent_external.py
 │   ├── config.py
 │   ├── config.json
 │   ├── requirements.txt
