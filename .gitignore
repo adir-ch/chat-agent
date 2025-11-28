@@ -2,6 +2,9 @@
 frontend/node_modules/
 frontend/dist/
 
+# Ignore compiled JavaScript files in src (TypeScript source files are used instead)
+frontend/src/**/*.js
+
 # Editor
 .DS_Store
 

@@ -1,15 +1,18 @@
 #!/bin/bash
 
 # build.sh - Build services and prepare deployment location
-# Usage: ./build.sh <location>
+# Usage: ./build.sh <location> [os]
+#   os: windows, linux, or macos (optional, defaults to current OS)
 
 set -e
 
 # Usage function
 usage() {
-    echo "Usage: $0 <location>"
+    echo "Usage: $0 <location> [os]"
     echo ""
     echo "  location  - Directory path where services will be deployed"
+    echo "  os        - Target operating system: windows, linux, or macos (optional)"
+    echo "              If not specified, builds for the current OS"
     echo ""
     echo "This script will:"
     echo "  1. Build profile and search services using Makefile"
@@ -26,6 +29,60 @@ if [ $# -eq 0 ]; then
 fi
 
 LOCATION="$1"
+TARGET_OS="${2:-}"
+
+# Initialize BINARY_EXT variable
+BINARY_EXT=""
+
+# Map OS parameter to GOOS and GOARCH
+if [ -n "$TARGET_OS" ]; then
+    case "$TARGET_OS" in
+        windows)
+            export GOOS=windows
+            export GOARCH=amd64
+            BINARY_EXT=".exe"
+            ;;
+        linux)
+            export GOOS=linux
+            export GOARCH=amd64
+            BINARY_EXT=""
+            ;;
+        macos|darwin)
+            export GOOS=darwin
+            export GOARCH=amd64
+            BINARY_EXT=""
+            ;;
+        *)
+            echo "Error: Invalid OS parameter: $TARGET_OS"
+            echo "Valid options: windows, linux, macos"
+            exit 1
+            ;;
+    esac
+    echo "Building for target OS: $TARGET_OS (GOOS=$GOOS, GOARCH=$GOARCH)"
+else
+    # Detect current OS
+    CURRENT_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case "$CURRENT_OS" in
+        linux*)
+            export GOOS=linux
+            BINARY_EXT=""
+            ;;
+        darwin*)
+            export GOOS=darwin
+            BINARY_EXT=""
+            ;;
+        msys*|cygwin*|mingw*)
+            export GOOS=windows
+            BINARY_EXT=".exe"
+            ;;
+        *)
+            export GOOS=linux
+            BINARY_EXT=""
+            ;;
+    esac
+    export GOARCH=amd64
+    echo "Building for current OS: $GOOS (GOARCH=$GOARCH)"
+fi
 
 # Get the script directory and backend directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,8 +107,8 @@ cd "$BACKEND_DIR"
 make build
 
 # Verify binaries were created
-PROFILE_BIN="$BACKEND_DIR/profile/bin/profile"
-SEARCH_BIN="$BACKEND_DIR/search/bin/search"
+PROFILE_BIN="$BACKEND_DIR/profile/bin/profile$BINARY_EXT"
+SEARCH_BIN="$BACKEND_DIR/search/bin/search$BINARY_EXT"
 
 if [ ! -f "$PROFILE_BIN" ]; then
     echo "Error: Profile binary not found at $PROFILE_BIN"
@@ -68,10 +125,15 @@ echo ""
 
 # Copy binaries to location
 echo "Copying binaries to $LOCATION..."
-cp "$PROFILE_BIN" "$LOCATION/profile"
-cp "$SEARCH_BIN" "$LOCATION/search"
-chmod +x "$LOCATION/profile"
-chmod +x "$LOCATION/search"
+cp "$PROFILE_BIN" "$LOCATION/profile$BINARY_EXT"
+cp "$SEARCH_BIN" "$LOCATION/search$BINARY_EXT"
+
+# Only set executable permissions on Unix-like systems
+if [ "$GOOS" != "windows" ]; then
+    chmod +x "$LOCATION/profile$BINARY_EXT"
+    chmod +x "$LOCATION/search$BINARY_EXT"
+fi
+
 echo "Binaries copied successfully"
 echo ""
 
@@ -142,6 +204,9 @@ cp "$AGENT_DIR/embeddings.py" "$LOCATION/"
 # Copy requirements.txt
 cp "$AGENT_DIR/requirements.txt" "$LOCATION/"
 
+# Copy config.json
+cp "$AGENT_DIR/config.json" "$LOCATION/"
+
 # Copy run_agent.sh
 cp "$AGENT_DIR/run_agent.sh" "$LOCATION/"
 chmod +x "$LOCATION/run_agent.sh"
@@ -155,8 +220,8 @@ echo "=========================================="
 echo "Deployment location: $LOCATION"
 echo ""
 echo "Files created:"
-echo "  - profile (binary)"
-echo "  - search (binary)"
+echo "  - profile$BINARY_EXT (binary for $GOOS/$GOARCH)"
+echo "  - search$BINARY_EXT (binary for $GOOS/$GOARCH)"
 echo "  - profile.db (database)"
 echo "  - init-db.sql"
 echo "  - seed.sql"

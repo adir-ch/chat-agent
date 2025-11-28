@@ -1,15 +1,29 @@
 GO ?= go
 
+# Support cross-compilation via GOOS and GOARCH environment variables
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+
 GIT_VERSION := $(shell git describe --tags --dirty --always 2>/dev/null || echo unknown)
 
 PROFILE_DIR := profile
 SEARCH_DIR := search
 
-PROFILE_BIN := $(PROFILE_DIR)/bin/profile
-SEARCH_BIN := $(SEARCH_DIR)/bin/search
+# Determine binary extension based on OS
+ifeq ($(GOOS),windows)
+    BINARY_EXT := .exe
+else
+    BINARY_EXT :=
+endif
+
+PROFILE_BIN := $(PROFILE_DIR)/bin/profile$(BINARY_EXT)
+SEARCH_BIN := $(SEARCH_DIR)/bin/search$(BINARY_EXT)
 
 PROFILE_LDFLAGS := -ldflags "-X chat-agent/backend/profile/internal/version.BuildVersion=$(GIT_VERSION)"
 SEARCH_LDFLAGS := -ldflags "-X chat-agent/backend/search/internal/version.BuildVersion=$(GIT_VERSION)"
+
+# Build flags for cross-compilation
+BUILD_FLAGS := GOOS=$(GOOS) GOARCH=$(GOARCH)
 
 .PHONY: all build profile search clean test test-search test-profile init-db seed-profile
 
@@ -21,23 +35,25 @@ profile: $(PROFILE_BIN)
 
 $(PROFILE_BIN):
 	mkdir -p $(dir $@)
-	$(GO) build $(PROFILE_LDFLAGS) -o $@ ./$(PROFILE_DIR)/cmd/profile
+	$(BUILD_FLAGS) $(GO) build $(PROFILE_LDFLAGS) -o $@ ./$(PROFILE_DIR)/cmd/profile
 
 search: $(SEARCH_BIN)
 
 $(SEARCH_BIN):
 	mkdir -p $(dir $@)
-	$(GO) build $(SEARCH_LDFLAGS) -o $@ ./$(SEARCH_DIR)/cmd/search
+	$(BUILD_FLAGS) $(GO) build $(SEARCH_LDFLAGS) -o $@ ./$(SEARCH_DIR)/cmd/search
 
 clean:
 	make clean-profile
 	make clean-search
 
 clean-profile:
-	rm -rf $(PROFILE_DIR)/bin/profile
+	rm -rf $(PROFILE_DIR)/bin/profile*
+	rm -rf $(PROFILE_DIR)/bin/profile.exe
 
 clean-search:
-	rm -rf $(SEARCH_DIR)/bin/search
+	rm -rf $(SEARCH_DIR)/bin/search*
+	rm -rf $(SEARCH_DIR)/bin/search.exe
 
 test: test-search test-profile
 
