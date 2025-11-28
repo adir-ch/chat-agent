@@ -66,9 +66,6 @@ go run ./cmd/profile
 **Environment variables:**
 - `PROFILE_LISTEN_ADDR` (default `:8080`)
 - `PROFILE_DB_PATH` (default `profile.db`)
-- `OLLAMA_URL` (default `http://localhost:11434`)
-- `SEARCH_URL` (default `http://localhost:8090`)
-- `SYSTEM_PROMPT` (optional override for base instructions)
 
 **Initial setup:**
 ```bash
@@ -251,7 +248,7 @@ This will:
 
 ### Running Built Services
 
-After building, use the `run_services.sh` script to start all services:
+After building, use the `run_services.sh` script to start the backend services:
 
 ```bash
 cd <deployment-location>/backend
@@ -261,9 +258,14 @@ cd <deployment-location>/backend
 This script will:
 - Start profile service (port 8080)
 - Start search service (port 8090)
+
+use the `run_ai_agent.sh` script to start the backend services:
+
 - Set up Python virtual environment for agent service
 - Install Python dependencies
 - Start agent service (port 8070, model: local by default)
+- If you need to change the prompts, edit prompts.py and stop and start the ai agent
+- If you need to change the config, edit config.json and stop and start the ai agent
 
 All services run in the background with timestamped log files in `./logs/`.
 
@@ -288,6 +290,7 @@ export OPENAI_API_KEY=your-key-here
 export LANGCHAIN_API_KEY=your-key-here
 
 ./run_services.sh
+./run_ai_agent.sh
 ```
 
 **Viewing Logs:**
@@ -344,18 +347,6 @@ sudo apt update
 sudo apt install nginx
 ```
 
-**CentOS/RHEL:**
-```bash
-sudo yum install nginx
-# or for newer versions
-sudo dnf install nginx
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S nginx
-```
-
 #### Backend Services - Go
 
 Install Go (version ≥ 1.22) for running the backend services:
@@ -386,16 +377,6 @@ Install Python 3.12 and virtual environment support:
 ```bash
 sudo apt update
 sudo apt install python3.12 python3.12-venv python3-pip
-```
-
-**CentOS/RHEL:**
-```bash
-sudo yum install python3.12 python3-pip
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S python python-pip
 ```
 
 **Verify installation:**
@@ -430,13 +411,6 @@ Set the following environment variables before running the services. You can cre
 export PROFILE_LISTEN_ADDR=":8080"                    # Listen address (default: :8080)
 export PROFILE_DB_PATH="./profile.db"                 # SQLite database path (default: ./profile.db)
 export PROFILE_LISTINGS_LIMIT="5"                     # Maximum listings to return (default: 5)
-
-# External service URLs
-export OLLAMA_URL="http://localhost:11434"            # Ollama service URL (default: http://localhost:11434)
-export SEARCH_URL="http://localhost:8090"            # Search service URL (default: http://localhost:8090)
-
-# Optional
-export SYSTEM_PROMPT=""                               # Override system prompt (optional)
 ```
 
 #### Search Service
@@ -538,23 +512,8 @@ Source the script before running services:
 ```bash
 source setup-env.sh
 ./run_services.sh
+./run_ai_agent.sh
 ```
-
-### Running Services
-
-After setting environment variables, start all services:
-
-```bash
-cd <deployment-location>/backend
-./run_services.sh
-```
-
-The script will:
-- Start profile service on port 8080
-- Start search service on port 8090
-- Create Python virtual environment (if needed)
-- Install Python dependencies
-- Start agent service on port 8070
 
 ### Nginx Configuration
 
@@ -598,7 +557,7 @@ See `docker-compose.yml` for a containerised setup that runs the frontend, both 
 
 ## Next steps
 
-- Add auth / agent identity flows
-- Expand function-calling coverage and error handling
-- Add unit and integration tests
-- Automate Elasticsearch index management
+- [ ] Add auth / agent identity flows
+- [ ] Expand function-calling coverage and error handling
+- [ ] Add unit and integration tests
+- [ ] Automate Elasticsearch index management
