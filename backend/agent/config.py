@@ -7,21 +7,119 @@ then defaults. API keys are only loaded from environment variables.
 
 import os
 import json
+import sys
 from pathlib import Path
 from typing import List, Any, Optional
 
 
-def _load_json_config() -> dict:
-    """Load configuration from config.json file."""
+class ConfigError(Exception):
+    """Exception raised when configuration is invalid."""
+    pass
+
+
+def _print_documentation():
+    """Print the documentation from config.json."""
     config_path = Path(__file__).parent / "config.json"
     try:
         if config_path.exists():
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
-                return config_data.get("agent_config", {})
-    except (json.JSONDecodeError, IOError):
+                doc = config_data.get("_documentation", {})
+                if doc:
+                    print("\n" + "="*70)
+                    print("CONFIGURATION DOCUMENTATION")
+                    print("="*70)
+                    print(f"\n{doc.get('description', '')}\n")
+                    print("Available Configuration Options:")
+                    print("-" * 70)
+                    for key, value in doc.items():
+                        if key != "description":
+                            print(f"  {key}: {value}")
+                    print("="*70 + "\n")
+    except Exception:
         pass
-    return {}
+
+
+def _validate_config(agent_config: dict):
+    """Validate configuration values."""
+    errors = []
+    
+    # Validate server_port is an integer
+    if "server_port" in agent_config:
+        try:
+            port = agent_config["server_port"]
+            if port is not None:
+                port_int = int(port) if isinstance(port, str) else port
+                if not isinstance(port_int, int) or port_int < 1 or port_int > 65535:
+                    errors.append(f"server_port must be an integer between 1 and 65535, got: {port}")
+        except (ValueError, TypeError):
+            errors.append(f"server_port must be an integer, got: {agent_config['server_port']}")
+    
+    # Validate embedding_top_k is an integer
+    if "embedding_top_k" in agent_config:
+        try:
+            top_k = agent_config["embedding_top_k"]
+            if top_k is not None:
+                top_k_int = int(top_k) if isinstance(top_k, str) else top_k
+                if not isinstance(top_k_int, int) or top_k_int < 1:
+                    errors.append(f"embedding_top_k must be a positive integer, got: {top_k}")
+        except (ValueError, TypeError):
+            errors.append(f"embedding_top_k must be an integer, got: {agent_config['embedding_top_k']}")
+    
+    # Validate openai_temperature is a float between 0 and 2
+    if "openai_temperature" in agent_config:
+        try:
+            temp = agent_config["openai_temperature"]
+            if temp is not None:
+                temp_float = float(temp) if isinstance(temp, str) else temp
+                if not isinstance(temp_float, (int, float)) or temp_float < 0 or temp_float > 2:
+                    errors.append(f"openai_temperature must be a number between 0 and 2, got: {temp}")
+        except (ValueError, TypeError):
+            errors.append(f"openai_temperature must be a number, got: {agent_config['openai_temperature']}")
+    
+    # Validate use_embeddings is a boolean
+    if "use_embeddings" in agent_config:
+        val = agent_config["use_embeddings"]
+        if not isinstance(val, bool) and val not in ("true", "false", "True", "False", "1", "0"):
+            errors.append(f"use_embeddings must be a boolean (true/false), got: {val}")
+    
+    # Validate cors_origins is a list
+    if "cors_origins" in agent_config:
+        val = agent_config["cors_origins"]
+        if not isinstance(val, list):
+            errors.append(f"cors_origins must be an array, got: {type(val).__name__}")
+    
+    if errors:
+        error_msg = "Configuration validation errors:\n" + "\n".join(f"  - {e}" for e in errors)
+        raise ConfigError(error_msg)
+
+
+def _load_json_config() -> dict:
+    """Load and validate configuration from config.json file."""
+    config_path = Path(__file__).parent / "config.json"
+    
+    if not config_path.exists():
+        raise ConfigError(f"config.json not found at {config_path}")
+    
+    try:
+        with open(config_path, 'r') as f:
+            config_data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ConfigError(f"Invalid JSON in config.json: {e}")
+    except IOError as e:
+        raise ConfigError(f"Error reading config.json: {e}")
+    
+    agent_config = config_data.get("agent_config")
+    if agent_config is None:
+        raise ConfigError("config.json must contain an 'agent_config' object")
+    
+    if not isinstance(agent_config, dict):
+        raise ConfigError("'agent_config' must be a JSON object")
+    
+    # Validate configuration values
+    _validate_config(agent_config)
+    
+    return agent_config
 
 
 def _get_config_value(key: str, json_config: dict, env_key: str, default: Any) -> Any:
@@ -54,7 +152,11 @@ class Config:
     """Configuration class for the AI Agent service."""
     
     # Load JSON config once
-    _json_config = _load_json_config()
+    try:
+        _json_config = _load_json_config()
+    except ConfigError as e:
+        print(f"Configuration Error: {e}", file=sys.stderr)
+        sys.exit(1)
     
     # Ollama configuration
     _ollama_model = _get_config_value("ollama_model", _json_config, "OLLAMA_MODEL", "llama3:latest")

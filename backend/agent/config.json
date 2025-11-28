@@ -1,4 +1,24 @@
 {
+  "_documentation": {
+    "description": "Configuration options for the AI Agent service. All values can be overridden via environment variables. API keys (LANGCHAIN_API_KEY, OPENAI_API_KEY) must be set via environment variables only.",
+    "ollama_model": "Model name for Ollama (local model). Example: 'llama3:latest', 'mistral:latest'",
+    "ollama_base_url": "Base URL for Ollama API. Default: http://localhost:11434",
+    "langchain_tracing_v2": "Enable LangSmith tracing. Set to 'true' or 'false'",
+    "langchain_project": "LangSmith project name for organizing traces",
+    "langchain_endpoint": "Custom LangSmith endpoint URL (optional). Leave empty for default",
+    "openai_model": "OpenAI model name. Examples: 'gpt-4', 'gpt-3.5-turbo', 'gpt-5-mini'",
+    "openai_temperature": "Temperature for OpenAI API (0.0-2.0). Higher = more creative, Lower = more focused",
+    "openai_max_tokens": "Maximum tokens for OpenAI responses. Set to null for model default",
+    "openai_base_url": "Custom OpenAI API base URL (optional). Leave empty for default OpenAI endpoint",
+    "use_embeddings": "Enable embedding-based search. Set to true or false",
+    "embedding_model": "Model name for embeddings. Example: 'text-embedding-3-small', 'text-embedding-3-large'",
+    "embedding_top_k": "Number of top results to return from embedding search (integer)",
+    "fetch_url": "URL for the search/fetch service endpoint",
+    "profile_url": "Base URL for the profile service",
+    "server_host": "Host address for the agent server. Use '0.0.0.0' to accept connections from any interface",
+    "server_port": "Port number for the agent server (integer)",
+    "cors_origins": "Array of allowed CORS origins. Add frontend URLs that should be allowed to access the API"
+  },
   "agent_config": {
     "ollama_model": "llama3:latest",
     "ollama_base_url": "http://localhost:11434",
@@ -9,7 +29,7 @@
     "openai_temperature": 0.7,
     "openai_max_tokens": null,
     "openai_base_url": "",
-    "use_embeddings": false,
+    "use_embeddings": true,
     "embedding_model": "text-embedding-3-small",
     "embedding_top_k": 5,
     "fetch_url": "http://localhost:8090/search/smart",
