@@ -40,9 +40,85 @@ def _print_documentation():
         pass
 
 
+def _get_model_config(models: List[dict], model_type: str) -> Optional[dict]:
+    """
+    Get model configuration by type from the models array.
+    
+    Args:
+        models: List of model configuration dictionaries
+        model_type: Type of model to find (any string)
+    
+    Returns:
+        Model configuration dictionary or None if not found
+    """
+    if not isinstance(models, list):
+        return None
+    
+    for model in models:
+        if isinstance(model, dict) and model.get("type") == model_type:
+            return model
+    return None
+
+
 def _validate_config(agent_config: dict):
     """Validate configuration values."""
     errors = []
+    
+    # Validate models array structure
+    # All models must have the same required fields regardless of type
+    if "models" in agent_config:
+        models = agent_config["models"]
+        if not isinstance(models, list):
+            errors.append("'models' must be an array")
+        elif len(models) == 0:
+            errors.append("'models' array must contain at least one model configuration")
+        else:
+            # Required fields that all models must have
+            required_fields = ["type", "model", "temperature", "max_tokens", "base_url"]
+            
+            for i, model in enumerate(models):
+                if not isinstance(model, dict):
+                    errors.append(f"models[{i}] must be an object")
+                    continue
+                
+                # Validate required fields for all models
+                for field in required_fields:
+                    if field not in model:
+                        errors.append(f"models[{i}] must have a '{field}' field")
+                
+                # Validate type field is a string
+                model_type = model.get("type")
+                if model_type is not None and not isinstance(model_type, str):
+                    errors.append(f"models[{i}] 'type' field must be a string")
+                
+                # Validate temperature if present (must be number between 0 and 2)
+                if "temperature" in model:
+                    try:
+                        temp = model["temperature"]
+                        if temp is not None:
+                            temp_float = float(temp) if isinstance(temp, str) else temp
+                            if not isinstance(temp_float, (int, float)) or temp_float < 0 or temp_float > 2:
+                                errors.append(f"models[{i}] temperature must be a number between 0 and 2, got: {temp}")
+                    except (ValueError, TypeError):
+                        errors.append(f"models[{i}] temperature must be a number, got: {model['temperature']}")
+                
+                # Validate max_tokens if present (must be integer or null)
+                if "max_tokens" in model:
+                    max_tokens = model["max_tokens"]
+                    if max_tokens is not None:
+                        try:
+                            max_tokens_int = int(max_tokens) if isinstance(max_tokens, str) else max_tokens
+                            if not isinstance(max_tokens_int, int) or max_tokens_int < 1:
+                                errors.append(f"models[{i}] max_tokens must be a positive integer or null, got: {max_tokens}")
+                        except (ValueError, TypeError):
+                            errors.append(f"models[{i}] max_tokens must be an integer or null, got: {max_tokens}")
+                
+                # Validate base_url if present (must be string)
+                if "base_url" in model and model["base_url"] is not None:
+                    if not isinstance(model["base_url"], str):
+                        errors.append(f"models[{i}] base_url must be a string, got: {type(model['base_url']).__name__}")
+    else:
+        errors.append("'models' array is required in agent_config")
     
     # Validate server_port is an integer
     if "server_port" in agent_config:
@@ -65,17 +141,6 @@ def _validate_config(agent_config: dict):
                     errors.append(f"embedding_top_k must be a positive integer, got: {top_k}")
         except (ValueError, TypeError):
             errors.append(f"embedding_top_k must be an integer, got: {agent_config['embedding_top_k']}")
-    
-    # Validate openai_temperature is a float between 0 and 2
-    if "openai_temperature" in agent_config:
-        try:
-            temp = agent_config["openai_temperature"]
-            if temp is not None:
-                temp_float = float(temp) if isinstance(temp, str) else temp
-                if not isinstance(temp_float, (int, float)) or temp_float < 0 or temp_float > 2:
-                    errors.append(f"openai_temperature must be a number between 0 and 2, got: {temp}")
-        except (ValueError, TypeError):
-            errors.append(f"openai_temperature must be a number, got: {agent_config['openai_temperature']}")
     
     # Validate use_embeddings is a boolean
     if "use_embeddings" in agent_config:
@@ -148,6 +213,32 @@ def _get_config_value(key: str, json_config: dict, env_key: str, default: Any) -
     return default
 
 
+def _get_model_config_value(model_config: Optional[dict], key: str, env_key: str, default: Any) -> Any:
+    """
+    Get model configuration value with priority: Model Config > Environment Variable > Default.
+    
+    Args:
+        model_config: Model configuration dictionary from models array
+        key: Key in model config
+        env_key: Environment variable name
+        default: Default value if not found in model config or env
+    
+    Returns:
+        Configuration value
+    """
+    # Check model config first
+    if model_config and key in model_config and model_config[key] is not None:
+        return model_config[key]
+    
+    # Check environment variable
+    env_value = os.getenv(env_key)
+    if env_value is not None and env_value != "":
+        return env_value
+    
+    # Use default
+    return default
+
+
 class Config:
     """Configuration class for the AI Agent service."""
     
@@ -158,10 +249,17 @@ class Config:
         print(f"Configuration Error: {e}", file=sys.stderr)
         sys.exit(1)
     
+    # Get model configurations from models array
+    _models = _json_config.get("models", [])
+    _ollama_config = _get_model_config(_models, "ollama")
+    _openai_config = _get_model_config(_models, "openai")
+    
     # Ollama configuration
-    _ollama_model = _get_config_value("ollama_model", _json_config, "OLLAMA_MODEL", "llama3:latest")
+    _ollama_model = _get_model_config_value(_ollama_config, "model", "OLLAMA_MODEL", "llama3:latest")
     OLLAMA_MODEL = _ollama_model.strip() if _ollama_model else "llama3:latest"
-    OLLAMA_BASE_URL = _get_config_value("ollama_base_url", _json_config, "OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_BASE_URL = _get_model_config_value(_ollama_config, "base_url", "OLLAMA_BASE_URL", "http://localhost:11434")
+    _ollama_max_tokens = _get_model_config_value(_ollama_config, "max_tokens", "OLLAMA_MAX_TOKENS", None)
+    OLLAMA_MAX_TOKENS = int(_ollama_max_tokens) if _ollama_max_tokens else None
     
     # LangSmith configuration
     LANGCHAIN_TRACING_V2 = _get_config_value("langchain_tracing_v2", _json_config, "LANGCHAIN_TRACING_V2", "true")
@@ -173,14 +271,16 @@ class Config:
     # External Model Configuration (OpenAI)
     # API keys are only loaded from environment variables
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_MODEL = _get_config_value("openai_model", _json_config, "OPENAI_MODEL", "gpt-5-mini")
-    _openai_temperature = _get_config_value("openai_temperature", _json_config, "OPENAI_TEMPERATURE", 0.7)
+    _openai_model = _get_model_config_value(_openai_config, "model", "OPENAI_MODEL", "gpt-5-mini")
+    OPENAI_MODEL = _openai_model.strip() if _openai_model else "gpt-5-mini"
+    _openai_temperature = _get_model_config_value(_openai_config, "temperature", "OPENAI_TEMPERATURE", 0.7)
     OPENAI_TEMPERATURE = float(_openai_temperature) if _openai_temperature else 0.7
-    _openai_max_tokens = _get_config_value("openai_max_tokens", _json_config, "OPENAI_MAX_TOKENS", None)
+    _openai_max_tokens = _get_model_config_value(_openai_config, "max_tokens", "OPENAI_MAX_TOKENS", None)
     OPENAI_MAX_TOKENS = int(_openai_max_tokens) if _openai_max_tokens else None
-    OPENAI_BASE_URL = _get_config_value("openai_base_url", _json_config, "OPENAI_BASE_URL", "")
+    _openai_base_url = _get_model_config_value(_openai_config, "base_url", "OPENAI_BASE_URL", "")
+    OPENAI_BASE_URL = _openai_base_url.strip() if _openai_base_url else ""
     
-    # Embedding configuration
+    # Embedding configuration (kept at top level)
     _use_embeddings = _get_config_value("use_embeddings", _json_config, "USE_EMBEDDINGS", False)
     USE_EMBEDDINGS = str(_use_embeddings).lower() == "true" if isinstance(_use_embeddings, str) else bool(_use_embeddings)
     EMBEDDING_MODEL = _get_config_value("embedding_model", _json_config, "EMBEDDING_MODEL", "text-embedding-3-small")
@@ -202,4 +302,51 @@ class Config:
         # Parse string from environment variable or default
         _cors_origins_str = str(_cors_origins_value) if _cors_origins_value else "http://localhost:5173,http://localhost:3000"
         CORS_ORIGINS: List[str] = [origin.strip() for origin in _cors_origins_str.split(",") if origin.strip()]
+    
+    @staticmethod
+    def get_available_model_types() -> List[str]:
+        """
+        Get list of available model types from the models array.
+        
+        Returns:
+            List of model type strings (e.g., ['ollama', 'openai'])
+        """
+        models = Config._json_config.get("models", [])
+        if not isinstance(models, list):
+            return []
+        
+        model_types = []
+        for model in models:
+            if isinstance(model, dict) and "type" in model:
+                model_type = model["type"]
+                if model_type not in model_types:
+                    model_types.append(model_type)
+        return model_types
+    
+    @staticmethod
+    def validate_model_type(model_type: str) -> bool:
+        """
+        Validate that a model type exists in the models array.
+        
+        Args:
+            model_type: Model type to validate (e.g., 'ollama', 'openai')
+        
+        Returns:
+            True if model type exists, False otherwise
+        """
+        available_types = Config.get_available_model_types()
+        return model_type in available_types
+    
+    @staticmethod
+    def get_model_config_by_type(model_type: str) -> Optional[dict]:
+        """
+        Get model configuration by type.
+        
+        Args:
+            model_type: Model type to get (e.g., 'ollama', 'openai')
+        
+        Returns:
+            Model configuration dictionary or None if not found
+        """
+        return _get_model_config(Config._models, model_type)
 

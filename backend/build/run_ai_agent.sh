@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # run_ai_agent.sh - Run AI agent service with Python virtual environment
-# Usage: ./run_ai_agent.sh [model]
-#   model: "gpt" or "local" (default: "gpt")
+# Usage: ./run_ai_agent.sh [model_type]
+#   model_type: Model type from config.json models array (e.g., "ollama", "openai")
+#              Default: "openai" if not specified
 # Runs the agent service in the background with timestamped log files
 
 set -e
@@ -65,11 +66,12 @@ else
     echo "Warning: requirements.txt not found. Skipping dependency installation."
 fi
 
-# Determine agent model (default to "gpt", can be overridden via AGENT_MODEL env var or argument)
+# Determine agent model type (default to "openai", can be overridden via AGENT_MODEL env var or argument)
+# Model type must match a type in config.json models array (e.g., "ollama", "openai")
 if [ -n "$1" ]; then
     AGENT_MODEL="$1"
 else
-    AGENT_MODEL="${AGENT_MODEL:-gpt}"
+    AGENT_MODEL="${AGENT_MODEL:-openai}"
 fi
 
 # Create logs directory if it doesn't exist
