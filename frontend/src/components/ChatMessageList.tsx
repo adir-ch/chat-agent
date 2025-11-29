@@ -33,7 +33,7 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
   
   return (
     <div
-      className={`max-w-[75%] min-w-0 px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
+      className={`max-w-[95%] md:max-w-[75%] min-w-0 px-3 md:px-4 py-3 rounded-b-xl shadow-sm ${roleStyles[message.role]}`}
     >
       {message.role === 'assistant' ? (
         <div className="prose prose-invert prose-sm max-w-none leading-relaxed min-w-0 overflow-x-auto">
@@ -156,14 +156,14 @@ export const ChatMessageList = memo(({ messages, isLoading, agentName }: Props) 
   return (
     <div 
       ref={scrollContainerRef}
-      className="flex-1 flex flex-col gap-4 overflow-y-auto px-6 py-6"
+      className="flex-1 flex flex-col gap-3 md:gap-4 overflow-y-auto px-3 md:px-6 py-4 md:py-6"
       style={{ scrollBehavior: 'smooth' }}
     >
       {messages.map((msg) => (
         <ChatMessageItem key={msg.id} message={msg} agentName={agentName} />
       ))}
       {isLoading ? (
-        <div className="mx-auto text-sm text-zinc-500 animate-pulse">Thinking…</div>
+        <div className="mx-auto text-xs md:text-sm text-zinc-500 animate-pulse">Thinking…</div>
       ) : null}
       <div ref={bottomAnchorRef} className="h-4 flex-shrink-0" />
     </div>

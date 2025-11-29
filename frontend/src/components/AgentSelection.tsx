@@ -76,8 +76,8 @@ export function AgentSelection({ onSelect }: Props) {
 
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="w-full max-w-3xl px-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="w-full max-w-3xl px-4 md:px-6">
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           <div>
             <label htmlFor="agent-select" className="block text-sm font-medium text-zinc-300 mb-2">
               Select an Agent
@@ -86,7 +86,7 @@ export function AgentSelection({ onSelect }: Props) {
               id="agent-select"
               value={selectedAgentId}
               onChange={(e) => setSelectedAgentId(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-700 focus:border-transparent"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 md:py-3 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-700 focus:border-transparent text-sm md:text-base min-h-[44px]"
             >
               {agents.map((agent) => (
                 <option key={agent.agent_id} value={agent.agent_id}>
@@ -98,7 +98,7 @@ export function AgentSelection({ onSelect }: Props) {
           <button
             type="submit"
             disabled={!selectedAgentId}
-            className="w-full px-6 py-3 rounded-xl bg-accent text-zinc-950 font-medium disabled:opacity-60 disabled:cursor-not-allowed transition hover:opacity-90"
+            className="w-full px-6 py-3 rounded-xl bg-accent text-zinc-950 font-medium disabled:opacity-60 disabled:cursor-not-allowed transition hover:opacity-90 min-h-[44px] text-sm md:text-base"
           >
             Submit
           </button>
