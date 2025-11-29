@@ -253,7 +253,11 @@ This will:
 │   ├── agent.py
 │   ├── ai_agent_local.py
 │   ├── ai_agent_gpt.py
+│   ├── chat.py
 │   ├── config.py
+│   ├── models.py
+│   ├── sessions.py
+│   ├── utils.py
 │   ├── config.json
 │   ├── requirements.txt
 │   └── run_agent.sh
