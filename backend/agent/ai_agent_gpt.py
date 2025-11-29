@@ -12,10 +12,9 @@ from langchain_openai import ChatOpenAI
 from agent import (
     app,
     setup_chat_endpoint,
-    run_server,
-    mask_sensitive_data,
-    LOGGER
+    run_server
 )
+from utils import mask_sensitive_data, LOGGER
 from config import Config
 
 # Conditionally import EmbeddingService only if embeddings are enabled

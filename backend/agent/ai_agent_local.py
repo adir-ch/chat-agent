@@ -11,9 +11,9 @@ from langchain_ollama import ChatOllama
 from agent import (
     app,
     setup_chat_endpoint,
-    run_server,
-    LOGGER
+    run_server
 )
+from utils import LOGGER
 from config import Config
 
 
