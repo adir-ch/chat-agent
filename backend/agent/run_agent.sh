@@ -1,17 +1,20 @@
 #!/bin/bash
 
-# run_agent.sh - Run AI agent with local or GPT model
-# Usage: ./run_agent.sh [local|gpt|docs]
+# run_agent.sh - Run AI agent with selected model type from config
+# Usage: ./run_agent.sh [model_type|docs]
+# Example: ./run_agent.sh ollama
+# Example: ./run_agent.sh openai
 
 set -e
 
 # Usage function
 usage() {
-    echo "Usage: $0 [local|gpt|docs]"
+    echo "Usage: $0 [model_type|docs]"
     echo ""
-    echo "  local  - Run agent with Ollama (local model)"
-    echo "  gpt    - Run agent with OpenAI GPT model"
-    echo "  docs   - Print configuration documentation and exit"
+    echo "  model_type  - Model type from config.json models array (e.g., 'ollama', 'openai')"
+    echo "  docs        - Print configuration documentation and exit"
+    echo ""
+    echo "Available model types are defined in config.json under agent_config.models"
     exit 1
 }
 
@@ -46,6 +49,39 @@ validate_config() {
         # config.py will print its own error messages
         exit 1
     fi
+}
+
+# Function to get available model types from config
+get_available_model_types() {
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    cd "$script_dir"
+    python3 -c "from config import Config; import json; types = Config.get_available_model_types(); print(json.dumps(types))" 2>/dev/null || echo "[]"
+}
+
+# Function to validate model type exists in config
+validate_model_type() {
+    local model_type="$1"
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    cd "$script_dir"
+    python3 -c "from config import Config; import sys; sys.exit(0 if Config.validate_model_type('$model_type') else 1)" 2>/dev/null
+}
+
+# Function to show available model types
+show_available_models() {
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    local config_file="$script_dir/config.json"
+    
+    echo "Available model types in config.json:"
+    echo "====================================="
+    
+    if command -v jq >/dev/null 2>&1; then
+        jq -r '.agent_config.models[] | "  - \(.type) (model: \(.model))"' "$config_file" 2>/dev/null || {
+            echo "  Warning: Could not parse config.json to extract model types"
+        }
+    else
+        echo "  Warning: jq is not installed. Cannot display available model types."
+    fi
+    echo ""
 }
 
 # Function to print documentation from config.json
@@ -130,8 +166,8 @@ check_api_keys() {
         echo "  LANGCHAIN_API_KEY: Not found in environment variables"
     fi
     
-    # Check OPENAI_API_KEY for GPT model
-    if [ "$model_type" == "gpt" ]; then
+    # Check OPENAI_API_KEY for OpenAI model
+    if [ "$model_type" == "openai" ]; then
         if [ -n "$OPENAI_API_KEY" ]; then
             echo "  OPENAI_API_KEY: Found in environment variables"
         else
@@ -145,21 +181,18 @@ check_api_keys() {
 
 # Validate argument
 if [ $# -eq 0 ]; then
-    echo "Error: parameter is required"
+    echo "Error: model type parameter is required"
+    echo ""
+    show_available_models
     usage
 fi
 
-MODEL_NAME="$1"
+MODEL_TYPE="$1"
 
 # Handle "docs" parameter
-if [ "$MODEL_NAME" == "docs" ]; then
+if [ "$MODEL_TYPE" == "docs" ]; then
     print_documentation
     exit 0
-fi
-
-if [ "$MODEL_NAME" != "local" ] && [ "$MODEL_NAME" != "gpt" ]; then
-    echo "Error: Invalid parameter. Must be 'local', 'gpt', or 'docs'"
-    usage
 fi
 
 # ============================================================================
@@ -179,49 +212,66 @@ export LANGCHAIN_API_KEY="${LANGCHAIN_API_KEY:-}"
 validate_config
 
 # ============================================================================
-# Local Model Configuration (for Ollama)
+# Validate Model Type
 # ============================================================================
+# Validate that the selected model type exists in config.json
 
-if [ "$MODEL_NAME" == "local" ]; then
-    echo "Starting agent with LOCAL model (Ollama)..."
+if ! validate_model_type "$MODEL_TYPE"; then
+    echo "Error: Model type '$MODEL_TYPE' not found in config.json"
     echo ""
-    
-    print_config
-    check_api_keys "local"
-    
-    echo ""
-    echo "Starting agent..."
-    echo ""
-    
-    # Run local agent
-    python ai_agent_local.py
+    show_available_models
+    echo "Please select one of the available model types listed above."
+    exit 1
 fi
 
 # ============================================================================
-# GPT Model Configuration (for OpenAI)
+# Run Agent with Selected Model Type
 # ============================================================================
 
-if [ "$MODEL_NAME" == "gpt" ]; then
-    export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
-    
-    echo "Starting agent with GPT model (OpenAI)..."
-    echo ""
-    
-    print_config
-    
-    # Check API keys and exit if OPENAI_API_KEY is missing
-    if ! check_api_keys "gpt"; then
+# Map model type to script and API key requirements
+case "$MODEL_TYPE" in
+    "ollama")
+        echo "Starting agent with OLLAMA model..."
         echo ""
-        echo "Error: OPENAI_API_KEY is required for GPT model but was not found in environment variables."
-        echo "Please set OPENAI_API_KEY before running the agent."
+        
+        print_config
+        check_api_keys "ollama"
+        
+        echo ""
+        echo "Starting agent..."
+        echo ""
+        
+        # Run local agent
+        python ai_agent_local.py
+        ;;
+    "openai")
+        export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
+        
+        echo "Starting agent with OPENAI model..."
+        echo ""
+        
+        print_config
+        
+        # Check API keys and exit if OPENAI_API_KEY is missing
+        if ! check_api_keys "openai"; then
+            echo ""
+            echo "Error: OPENAI_API_KEY is required for OpenAI model but was not found in environment variables."
+            echo "Please set OPENAI_API_KEY before running the agent."
+            exit 1
+        fi
+        
+        echo ""
+        echo "Starting agent..."
+        echo ""
+        
+        # Run GPT agent
+        python ai_agent_gpt.py
+        ;;
+    *)
+        echo "Error: Unsupported model type '$MODEL_TYPE'"
+        echo ""
+        show_available_models
         exit 1
-    fi
-    
-    echo ""
-    echo "Starting agent..."
-    echo ""
-    
-    # Run GPT agent
-    python ai_agent_gpt.py
-fi
+        ;;
+esac
 

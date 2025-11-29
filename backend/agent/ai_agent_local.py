@@ -26,9 +26,21 @@ def create_llm():
         LOGGER.error(error_msg)
         raise ValueError(error_msg)
     
-    LOGGER.info("create_llm: initializing ChatOllama with model='%s', base_url='%s'", model, Config.OLLAMA_BASE_URL)
-    # Ensure model is passed as a non-empty string
-    llm = ChatOllama(model=str(model).strip(), base_url=Config.OLLAMA_BASE_URL)
+    # Get max_tokens from config and convert to num_predict for Ollama
+    num_predict = Config.OLLAMA_MAX_TOKENS
+    
+    LOGGER.info("create_llm: initializing ChatOllama with model='%s', base_url='%s', num_predict=%s", 
+                model, Config.OLLAMA_BASE_URL, num_predict)
+    
+    # Build kwargs for ChatOllama
+    llm_kwargs = {
+        "model": str(model).strip(),
+        "base_url": Config.OLLAMA_BASE_URL,
+    }
+    if num_predict:
+        llm_kwargs["num_predict"] = num_predict
+    
+    llm = ChatOllama(**llm_kwargs)
     LOGGER.debug("create_llm: ChatOllama initialized successfully")
     return llm
 

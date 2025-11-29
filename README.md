@@ -108,24 +108,39 @@ pip install -r requirements.txt
 **Running:**
 ```bash
 source venv/bin/activate
-python ai_agent_local.py
-# or for GPT model
-./run_agent.sh gpt
+# Select a model type from config.json (e.g., 'ollama' or 'openai')
+./run_agent.sh ollama
+# or
+./run_agent.sh openai
+```
+
+**Model Selection:**
+The agent requires you to select a model type from the `models` array defined in `config.json`. The script validates that the selected model type exists in the configuration before starting.
+
+To see available model types:
+```bash
+./run_agent.sh invalid_type  # Will show available models
 ```
 
 **Environment variables:**
-- `OLLAMA_MODEL` (default `llama3:latest`) - The Ollama model to use
-- `OLLAMA_BASE_URL` (default `http://localhost:11434`) - The base URL for the Ollama service
+- `OLLAMA_MODEL` (default `llama3:latest`) - The Ollama model to use (can override config.json)
+- `OLLAMA_BASE_URL` (default `http://localhost:11434`) - The base URL for the Ollama service (can override config.json)
+- `OPENAI_MODEL` (can override config.json) - The OpenAI model to use
+- `OPENAI_TEMPERATURE` (can override config.json) - Temperature for OpenAI API
+- `OPENAI_MAX_TOKENS` (can override config.json) - Maximum tokens for OpenAI responses
+- `OPENAI_BASE_URL` (can override config.json) - Custom OpenAI API base URL
 - `FETCH_URL` (default `http://localhost:8090/search/smart`) - The URL for the search service SmartSearch endpoint
 - `PROFILE_URL` (default `http://localhost:8080`) - The URL for the profile service
 - `SERVER_HOST` (default `0.0.0.0`) - The host address to bind the server to
 - `SERVER_PORT` (default `8070`) - The port number to run the server on
 - `CORS_ORIGINS` (default `http://localhost:5173,http://localhost:3000`) - Comma-separated list of allowed CORS origins
-- `OPENAI_API_KEY` (required for GPT model)
-- `LANGCHAIN_API_KEY` (optional, for LangSmith tracing)
+- `OPENAI_API_KEY` (required for OpenAI model) - Must be set via environment variable
+- `LANGCHAIN_API_KEY` (optional, for LangSmith tracing) - Must be set via environment variable
 
 **Configuration:**
-The agent service uses `config.json` for configuration. To view available options:
+The agent service uses `config.json` for configuration. Model configurations are defined in the `models` array within `agent_config`. Each model must have a `type` field (`ollama` or `openai`) and type-specific properties.
+
+To view available options:
 ```bash
 ./run_agent.sh docs
 ```
@@ -260,7 +275,7 @@ This script will:
 - Start profile service (port 8080)
 - Start search service (port 8090)
 
-Use the `run_ai_agent.sh` script to start the backend services:
+Use the `run_ai_agent.sh` script to start the backend services. The script accepts a model type parameter (e.g., `ollama` or `openai`) that must exist in `config.json`:
 
 - Set up Python virtual environment for agent service
 - Install Python dependencies
@@ -275,8 +290,8 @@ All services run in the background with timestamped log files in `./logs/`.
 You can configure services using environment variables before running:
 
 ```bash
-# Agent model selection (local or gpt)
-export AGENT_MODEL=local  # or gpt
+# Agent model selection (must match a type in config.json models array)
+# Example: export AGENT_MODEL=ollama  # or openai
 
 # Profile service
 export PROFILE_LISTEN_ADDR=:8080
@@ -322,15 +337,23 @@ The agent service uses `config.json` for configuration. To view available option
 
 ```json
 "agent_config": {
-    "ollama_model": "llama3:latest",
-    "ollama_base_url": "http://localhost:11434",
+    "models": [
+        {
+            "type": "ollama",
+            "model": "llama3:latest",
+            "base_url": "http://localhost:11434"
+        },
+        {
+            "type": "openai",
+            "model": "gpt-5-mini",
+            "temperature": 0.7,
+            "max_tokens": null,
+            "base_url": ""
+        }
+    ],
     "langchain_tracing_v2": "true",
     "langchain_project": "chat-agent",
     "langchain_endpoint": "",
-    "openai_model": "gpt-5-mini",
-    "openai_temperature": 0.7,
-    "openai_max_tokens": null,
-    "openai_base_url": "",
     "use_embeddings": true,
     "embedding_model": "text-embedding-3-small",
     "embedding_top_k": 5,
@@ -459,8 +482,8 @@ export ID4ME_API_KEY="your-api-key-here"              # ID4ME API key (required)
 #### Agent Service
 
 ```bash
-# Model selection
-export AGENT_MODEL="local"                            # Agent model: "local" or "gpt" (default: local)
+# Model selection (must match a type in config.json models array)
+# Example: export AGENT_MODEL="ollama"                 # or "openai" - must exist in config.json
 
 # Ollama configuration (for local model)
 export OLLAMA_MODEL="llama3:latest"                   # Ollama model name (default: llama3:latest)
