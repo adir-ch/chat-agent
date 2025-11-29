@@ -28,7 +28,7 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from pydantic import BaseModel, ConfigDict
 
 from config import Config
-from prompts import get_llm_prompt
+from prompts import get_llm_prompt, format_follow_up
 
 # Configure LangSmith tracing (common for all models)
 os.environ["LANGCHAIN_TRACING_V2"] = Config.LANGCHAIN_TRACING_V2
@@ -508,10 +508,7 @@ def process_chat_message(
             # Default: mask sensitive data
             processed_data = mask_sensitive_data(data)
 
-        follow_up = (
-            f"Here are the search results for '{query}': {processed_data}\n"
-            "Please summarise the key opportunities for the agent."
-        )
+        follow_up = format_follow_up(query, processed_data)
 
         # Second invoke with LangSmith trace context
         start_time2 = time.time()

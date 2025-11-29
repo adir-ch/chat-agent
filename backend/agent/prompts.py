@@ -8,6 +8,22 @@ in the agent to create the complete prompt template:
 - ANALYSIS_PROMPT: Instructions for analysis mode
 """
 
+def format_follow_up(query: str, processed_data: str) -> str:
+    """
+    Format the follow-up message with search results and instruction for the model.
+    
+    Args:
+        query: The search query that was executed
+        processed_data: The processed data results from the search
+        
+    Returns:
+        Formatted follow-up message with results and instruction
+    """
+    return (
+        f"Here are the search results for '{query}': {processed_data}\n"
+        "Please summarise the key opportunities for the agent."
+    )
+
 def get_llm_prompt() -> str:
     return SYSTEM_PROMPT + "\n\n" + QUERY_PROMPT + "\n\n" + ANALYSIS_PROMPT
 

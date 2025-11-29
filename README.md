@@ -289,9 +289,6 @@ export ELASTICSEARCH_URL=http://localhost:9200
 # Agent API keys (required for GPT model)
 export OPENAI_API_KEY=your-key-here
 export LANGCHAIN_API_KEY=your-key-here
-
-./run_services.sh
-./run_ai_agent.sh
 ```
 
 **Viewing Logs:**
