@@ -1,0 +1,666 @@
+"""
+Shared AI Agent implementation.
+
+This module contains all common code for the AI agent that works with any LLM model.
+Model-specific implementations (ai_agent_local.py, ai_agent_external.py) import from this
+module and provide model-specific LLM creation and configuration.
+"""
+import json
+import logging
+import os
+import re
+import requests
+import time
+from datetime import datetime, UTC
+from typing import Dict, Tuple, Callable, Optional
+from dataclasses import dataclass
+
+try:
+    from langsmith import uuid7
+except ImportError:
+    from uuid import uuid4 as uuid7
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
+from pydantic import BaseModel, ConfigDict
+
+from config import Config
+from prompts import get_llm_prompt
+
+# Configure LangSmith tracing (common for all models)
+os.environ["LANGCHAIN_TRACING_V2"] = Config.LANGCHAIN_TRACING_V2
+if Config.LANGCHAIN_API_KEY:
+    os.environ["LANGCHAIN_API_KEY"] = Config.LANGCHAIN_API_KEY
+if Config.LANGCHAIN_PROJECT:
+    os.environ["LANGCHAIN_PROJECT"] = Config.LANGCHAIN_PROJECT
+if Config.LANGCHAIN_ENDPOINT:
+    os.environ["LANGCHAIN_ENDPOINT"] = Config.LANGCHAIN_ENDPOINT
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+LOGGER = logging.getLogger(__name__)
+
+
+# ----------------------------------------------------------
+# Data Structures
+# ----------------------------------------------------------
+class AgentProfile:
+    def __init__(self, agent_id: str, agent_name: str, location: str, listings: list[str]):
+        self.agent_id = agent_id
+        self.agent_name = agent_name
+        self.location = location
+        self.listings = listings
+
+
+@dataclass
+class TokenUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+    
+    def add(self, input_tokens: int, output_tokens: int):
+        """Add tokens to the cumulative totals."""
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+    
+    def reset(self):
+        """Reset token counts to zero."""
+        self.input_tokens = 0
+        self.output_tokens = 0
+
+
+# Session management: maps agentId -> (runnable, history, profile, token_usage)
+agent_sessions: Dict[str, Tuple[RunnableWithMessageHistory, ChatMessageHistory, AgentProfile, TokenUsage]] = {}
+
+
+# ----------------------------------------------------------
+# Pydantic models for API
+# ----------------------------------------------------------
+class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra='ignore')  # Ignore extra fields
+    
+    agentId: str
+    message: str
+
+
+class ChatMessage(BaseModel):
+    id: str
+    role: str
+    content: str
+    createdAt: str
+
+
+class TokenUsageResponse(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+class ChatResponse(BaseModel):
+    message: ChatMessage
+    contextSummary: str | None = None
+    tokenUsage: TokenUsageResponse | None = None
+
+
+# ----------------------------------------------------------
+# Utility Functions
+# ----------------------------------------------------------
+def fetch_agent_profile(agent_id: str) -> AgentProfile:
+    """Fetch agent profile from the profile service."""
+    LOGGER.info("fetch_agent_profile: fetching profile for agent_id='%s'", agent_id)
+    try:
+        url = f"{Config.PROFILE_URL}/api/profile/{agent_id}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        
+        profile_data = response.json()
+        
+        # Map profile data to AgentProfile
+        # agent_name: first_name + last_name or fallback to agent_id
+        first_name = profile_data.get("first_name", "")
+        last_name = profile_data.get("last_name", "")
+        if first_name or last_name:
+            agent_name = f"{first_name} {last_name}".strip()
+        else:
+            agent_name = profile_data.get("agent_id", agent_id)
+        
+        # location: first area name or empty string
+        areas = profile_data.get("areas", [])
+        location = areas[0].get("name", "") if areas else ""
+        
+        # listings: format as ["address, suburb"]
+        listings_data = profile_data.get("listings", [])
+        listings = []
+        for listing in listings_data:
+            address = listing.get("address", "")
+            suburb = listing.get("suburb", "")
+            if address and suburb:
+                listings.append(f"{address}, {suburb}")
+            elif address:
+                listings.append(address)
+        
+        profile = AgentProfile(
+            agent_id=agent_id,
+            agent_name=agent_name,
+            location=location,
+            listings=listings
+        )
+        
+        LOGGER.info("fetch_agent_profile: successfully fetched profile - name='%s', location='%s', listings=%d", 
+                   agent_name, location, len(listings))
+        return profile
+        
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            LOGGER.warning("fetch_agent_profile: profile not found for agent_id='%s'", agent_id)
+            raise ValueError(f"Profile not found for agent {agent_id}")
+        else:
+            LOGGER.error("fetch_agent_profile: HTTP error fetching profile: %s", e)
+            raise
+    except requests.exceptions.RequestException as e:
+        LOGGER.error("fetch_agent_profile: network error fetching profile: %s", e)
+        raise
+    except Exception as e:
+        LOGGER.error("fetch_agent_profile: unexpected error fetching profile: %s", e)
+        raise
+
+
+def mask_sensitive_data(text: str) -> str:
+    """
+    Mask sensitive data in text:
+    - Phone numbers: mask the middle 4 digits
+    - Email addresses: mask 3-4 letters in the local part (before @)
+    - Dates are NOT masked (e.g., 2024-01-01, 01/01/2024)
+    """
+    masked_text = text
+    
+    # Common date patterns to exclude from phone masking
+    date_patterns = [
+        r'\d{4}-\d{2}-\d{2}',      # YYYY-MM-DD (e.g., 2024-01-01)
+        r'\d{2}/\d{2}/\d{4}',      # DD/MM/YYYY or MM/DD/YYYY (e.g., 01/01/2024)
+        r'\d{4}/\d{2}/\d{2}',      # YYYY/MM/DD (e.g., 2024/01/01)
+    ]
+    
+    # Mask mobile numbers - find sequences of digits that look like phone numbers (8-15 digits)
+    # Match phone numbers in various formats: +61 412 345 678, 0412 345 678, (04) 1234 5678, etc.
+    phone_pattern = r'(?:\+?\d{1,3}[-.\s()]?)?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}'
+    
+    def mask_phone(match):
+        phone = match.group(0)
+        
+        # Check if this match looks like a date pattern - if so, don't mask it
+        for date_pattern in date_patterns:
+            if re.match(date_pattern, phone):
+                return phone
+        
+        # Extract only digits
+        digits = re.sub(r'\D', '', phone)
+        
+        if len(digits) >= 8:  # Only mask if it looks like a phone number
+            # Mask middle 4 digits
+            if len(digits) <= 10:
+                # For 8-10 digit numbers: keep first 2 and last 2, mask middle 4
+                masked_digits = digits[:2] + '****' + digits[-2:]
+            else:
+                # For longer numbers: keep first 3 and last 3, mask middle 4
+                masked_digits = digits[:3] + '****' + digits[-3:]
+            
+            # Build masked phone by replacing digits sequentially
+            result = list(phone)
+            digit_pos = 0
+            for i, char in enumerate(result):
+                if char.isdigit():
+                    if digit_pos < len(masked_digits):
+                        result[i] = masked_digits[digit_pos]
+                        digit_pos += 1
+            return ''.join(result)
+        
+        return phone
+    
+    masked_text = re.sub(phone_pattern, mask_phone, masked_text)
+    
+    # Mask email addresses - mask 3-4 characters in the local part (before @)
+    email_pattern = r'\b([a-zA-Z0-9._+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
+    
+    def mask_email(match):
+        local_part = match.group(1)
+        domain = match.group(2)
+        
+        # Split local part by dots to handle cases like "john.doe"
+        parts = local_part.split('.')
+        masked_parts = []
+        
+        for part in parts:
+            # Count only letters in this part
+            letters_only = re.sub(r'[^a-zA-Z]', '', part)
+            
+            if len(letters_only) <= 2:
+                # Too short to mask meaningfully
+                masked_parts.append(part)
+            elif len(letters_only) <= 5:
+                # Mask 3 letters, keep first and last letter visible
+                first_letter_idx = next((i for i, c in enumerate(part) if c.isalpha()), None)
+                last_letter_idx = next((i for i in range(len(part)-1, -1, -1) if part[i].isalpha()), None)
+                if first_letter_idx is not None and last_letter_idx is not None:
+                    masked_part = part[:first_letter_idx+1] + '***' + part[last_letter_idx:]
+                    masked_parts.append(masked_part)
+                else:
+                    masked_parts.append(part)
+            else:
+                # Mask 4 letters, keep first and last letter visible
+                first_letter_idx = next((i for i, c in enumerate(part) if c.isalpha()), None)
+                last_letter_idx = next((i for i in range(len(part)-1, -1, -1) if part[i].isalpha()), None)
+                if first_letter_idx is not None and last_letter_idx is not None:
+                    masked_part = part[:first_letter_idx+1] + '****' + part[last_letter_idx:]
+                    masked_parts.append(masked_part)
+                else:
+                    masked_parts.append(part)
+        
+        masked_local = '.'.join(masked_parts)
+        return f"{masked_local}@{domain}"
+    
+    masked_text = re.sub(email_pattern, mask_email, masked_text)
+    
+    return masked_text
+
+
+def fetch_people(query: str) -> str:
+    """Fetch live homeowner data from your local endpoint."""
+    LOGGER.debug(">>>>>>>>>>>> fetch_people: starting request for query='%s'", query)
+    try:
+        response = requests.get(Config.FETCH_URL, params={"q": query})
+        response.raise_for_status()
+        LOGGER.debug(">>>>>>>>>>>> fetch_people: completed request with: %s", response.text)
+        return response.text
+    except Exception as e:
+        LOGGER.debug("fetch_people: request failed with error=%s", e)
+        return f"Error fetching data: {e}"
+
+
+def extract_token_usage(response) -> Tuple[int, int]:
+    """
+    Extract token usage from LLM response metadata.
+    Returns (input_tokens, output_tokens) tuple.
+    Works with both Ollama and OpenAI response formats.
+    """
+    input_tokens = 0
+    output_tokens = 0
+    
+    try:
+        # LangChain AIMessage objects have response_metadata
+        if hasattr(response, 'response_metadata'):
+            metadata = response.response_metadata
+            if metadata:
+                # Try common field names for token usage
+                if 'token_usage' in metadata:
+                    token_usage = metadata['token_usage']
+                    input_tokens = token_usage.get('prompt_tokens', token_usage.get('input_tokens', 0))
+                    output_tokens = token_usage.get('completion_tokens', token_usage.get('output_tokens', 0))
+                elif 'prompt_tokens' in metadata:
+                    input_tokens = metadata.get('prompt_tokens', 0)
+                    output_tokens = metadata.get('completion_tokens', metadata.get('eval_count', 0))
+                elif 'eval_count' in metadata:
+                    # Ollama format: eval_count is output tokens, prompt_eval_count is input tokens
+                    output_tokens = metadata.get('eval_count', 0)
+                    input_tokens = metadata.get('prompt_eval_count', 0)
+        
+        # Also check if response has usage_metadata attribute (some LangChain versions)
+        if hasattr(response, 'usage_metadata'):
+            usage = response.usage_metadata
+            if usage:
+                input_tokens = getattr(usage, 'input_tokens', input_tokens)
+                output_tokens = getattr(usage, 'output_tokens', output_tokens)
+        
+        # Debug: log the response structure if no tokens found
+        if input_tokens == 0 and output_tokens == 0:
+            LOGGER.debug("extract_token_usage: no tokens found in response. Available attributes: %s", 
+                        dir(response) if hasattr(response, '__dict__') else 'N/A')
+    except Exception as e:
+        LOGGER.debug("extract_token_usage: error extracting tokens: %s", e)
+    
+    return input_tokens, output_tokens
+
+
+def track_and_log_token_usage(response, token_usage: TokenUsage, session_id: str, invoke_label: str = "invoke") -> Tuple[int, int]:
+    """
+    Extract token usage from LLM response, update session totals, and log the information.
+    
+    Args:
+        response: The LLM response object
+        token_usage: The TokenUsage object for the session
+        session_id: The session identifier for logging
+        invoke_label: Label to identify which invoke this is (e.g., "first invoke", "second invoke")
+    
+    Returns:
+        Tuple[int, int]: (input_tokens, output_tokens) for this invocation
+    """
+    # Extract token usage from response
+    input_tokens, output_tokens = extract_token_usage(response)
+    
+    # Update session token totals
+    token_usage.add(input_tokens, output_tokens)
+    
+    # Log token usage information
+    LOGGER.info(
+        "Token usage for session '%s' (%s): Input: %d, Output: %d, Total: %d | "
+        "Session totals: Input: %d, Output: %d, Total: %d",
+        session_id,
+        invoke_label,
+        input_tokens, output_tokens, input_tokens + output_tokens,
+        token_usage.input_tokens, token_usage.output_tokens, token_usage.total_tokens
+    )
+    
+    return input_tokens, output_tokens
+
+
+# ----------------------------------------------------------
+# Agent Creation (Model-Agnostic)
+# ----------------------------------------------------------
+def create_agent(
+    agent_name: str,
+    location: str,
+    listings: list[str],
+    create_llm: Callable
+) -> Tuple[RunnableWithMessageHistory, ChatMessageHistory]:
+    """
+    Create an agent chain with the provided LLM creation function.
+    
+    Args:
+        agent_name: Name of the agent
+        location: Location of the agent
+        listings: List of property listings
+        create_llm: Function that creates and returns an LLM instance
+    
+    Returns:
+        Tuple of (runnable, history)
+    """
+    LOGGER.debug("create_agent: initializing agent='%s' location='%s' listings=%s",
+                 agent_name, location, listings)
+
+    # Create LLM using model-specific function
+    llm = create_llm()
+    LOGGER.debug("create_agent: LLM initialized successfully")
+
+    # Get prompt template using get_llm_prompt from prompts module
+    prompt_template_str = get_llm_prompt()
+    
+    # Combine prompt template with conversation context
+    combined_prompt = (
+        prompt_template_str + "\n\n" +
+        "Conversation so far:\n{chat_history}\n\n" +
+        "User question: {question}"
+    )
+    
+    prompt = ChatPromptTemplate.from_template(combined_prompt)
+    LOGGER.debug("create_agent: ChatPromptTemplate ready")
+
+    # Use modern message-based memory
+    history = ChatMessageHistory()
+
+    chain = prompt | llm
+
+    # Wrap with message-history memory
+    runnable = RunnableWithMessageHistory(
+        chain,
+        lambda session_id: history,
+        input_messages_key="question",
+        history_messages_key="chat_history"
+    )
+    LOGGER.debug("create_agent: chain assembled")
+    return runnable, history
+
+
+# ----------------------------------------------------------
+# Chat Processing Logic
+# ----------------------------------------------------------
+def process_chat_message(
+    profile: AgentProfile,
+    question: str,
+    session_id: str,
+    create_llm: Callable,
+    process_fetch_data: Optional[Callable[[str, str], str]] = None
+) -> Tuple[str, int, int]:
+    """
+    Process a chat message through the agent chain.
+    Handles FETCH: responses by calling fetch_people() and making follow-up invoke.
+    
+    Args:
+        profile: Agent profile
+        question: User's question
+        session_id: Session identifier
+        create_llm: Function that creates and returns an LLM instance
+        process_fetch_data: Optional function to process fetched data (e.g., for embeddings)
+    
+    Returns:
+        Tuple[str, int, int]: (response_text, total_input_tokens, total_output_tokens)
+        Token counts are cumulative for all invocations in this request.
+    """
+    # Get or create agent chain/history for this session
+    if session_id not in agent_sessions:
+        LOGGER.debug("process_chat_message: creating new agent for session_id='%s'", session_id)
+        runnable, history = create_agent(
+            profile.agent_name,
+            profile.location,
+            profile.listings,
+            create_llm
+        )
+        token_usage = TokenUsage()
+        agent_sessions[session_id] = (runnable, history, profile, token_usage)
+    else:
+        LOGGER.debug("process_chat_message: reusing existing agent for session_id='%s'", session_id)
+        runnable, history, _, token_usage = agent_sessions[session_id]
+        # Update profile in case it changed
+        agent_sessions[session_id] = (runnable, history, profile, token_usage)
+
+    inputs = {
+        "agent_name": profile.agent_name,
+        "location": profile.location,
+        "listings": ", ".join(profile.listings) if profile.listings else "",
+        "question": question,
+    }
+
+    LOGGER.info("process_chat_message: inputs=%s", inputs['question'])
+    # Track cumulative token counts for this request
+    request_input_tokens = 0
+    request_output_tokens = 0
+
+    # First invoke with LangSmith trace context
+    start_time = time.time()
+    response_obj = runnable.invoke(
+        inputs,
+        config={
+            "configurable": {"session_id": session_id},
+            "tags": ["chat-agent", f"agent-{profile.agent_id}", "first-invoke"],
+            "metadata": {
+                "agent_id": profile.agent_id,
+                "agent_name": profile.agent_name,
+                "location": profile.location,
+            },
+            "run_name": f"chat-{session_id}-initial",
+        },
+    )
+    elapsed_time = time.time() - start_time
+    LOGGER.info("Model response time (first invoke): %.3f seconds", elapsed_time)
+    response = response_obj.content.strip()
+    
+    # Track and log token usage, accumulate for this request
+    input_tokens1, output_tokens1 = track_and_log_token_usage(response_obj, token_usage, session_id, "first invoke")
+    request_input_tokens += input_tokens1
+    request_output_tokens += output_tokens1
+
+    if response.upper().startswith("FETCH"):
+        LOGGER.info(">>>>>>>> first invoke: %s", response)
+
+        query = response[6:].strip()
+        LOGGER.info("🔍 Fetching data for: %s", query)
+        data = fetch_people(query)
+        LOGGER.info("Data Received size: %d", len(data))
+
+        # Process fetched data (e.g., apply embeddings, mask sensitive data)
+        if process_fetch_data:
+            processed_data = process_fetch_data(data, query)
+        else:
+            # Default: mask sensitive data
+            processed_data = mask_sensitive_data(data)
+
+        follow_up = (
+            f"Here are the search results for '{query}': {processed_data}\n"
+            "Please summarise the key opportunities for the agent."
+        )
+
+        # Second invoke with LangSmith trace context
+        start_time2 = time.time()
+        response_obj2 = runnable.invoke(
+            {
+                "agent_name": profile.agent_name,
+                "location": profile.location,
+                "listings": ", ".join(profile.listings) if profile.listings else "",
+                "question": follow_up,
+            },
+            config={
+                "configurable": {"session_id": session_id},
+                "tags": ["chat-agent", f"agent-{profile.agent_id}", "second-invoke", "fetch-followup"],
+                "metadata": {
+                    "agent_id": profile.agent_id,
+                    "agent_name": profile.agent_name,
+                    "location": profile.location,
+                    "query": query,
+                },
+                "run_name": f"chat-{session_id}-followup",
+            },
+        )
+        elapsed_time2 = time.time() - start_time2
+        LOGGER.info("Model response time (second invoke): %.3f seconds", elapsed_time2)
+        response = response_obj2.content.strip()
+        
+        # Track and log token usage, accumulate for this request
+        input_tokens2, output_tokens2 = track_and_log_token_usage(response_obj2, token_usage, session_id, "second invoke")
+        request_input_tokens += input_tokens2
+        request_output_tokens += output_tokens2
+        LOGGER.info(">>>>>>>>>>> second invoke: %s:\n%s", follow_up, response)
+
+    return response, request_input_tokens, request_output_tokens
+
+
+# ----------------------------------------------------------
+# FastAPI app setup
+# ----------------------------------------------------------
+app = FastAPI(title="AI Agent API", version="1.0.0")
+
+# Configure CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=Config.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+
+
+def setup_chat_endpoint(
+    create_llm: Callable,
+    process_fetch_data: Optional[Callable[[str, str], str]] = None
+):
+    """
+    Setup the /chat endpoint with model-specific functions.
+    
+    Args:
+        create_llm: Function that creates and returns an LLM instance
+        process_fetch_data: Optional function to process fetched data
+    """
+    @app.post("/chat", response_model=ChatResponse)
+    async def chat_endpoint(request: ChatRequest):
+        """
+        Chat endpoint that processes messages through the AI agent.
+        """
+        try:
+            # Use agentId as session_id for conversation history
+            session_id = request.agentId
+            
+            LOGGER.info("chat_endpoint: processing message for agentId='%s', session_id='%s'", request.agentId, session_id)
+            
+            # Fetch or get cached profile for this session
+            profile = None
+            if session_id in agent_sessions:
+                # Profile already cached in session
+                _, _, profile, _ = agent_sessions[session_id]
+                LOGGER.debug("chat_endpoint: using cached profile for session_id='%s'", session_id)
+            else:
+                # Fetch profile from profile service
+                try:
+                    profile = fetch_agent_profile(request.agentId)
+                except ValueError as e:
+                    # Profile not found (404) - use fallback
+                    LOGGER.warning("chat_endpoint: profile not found, using fallback: %s", e)
+                    profile = AgentProfile(
+                        agent_id=request.agentId,
+                        agent_name=request.agentId,
+                        location="",
+                        listings=[]
+                    )
+                except Exception as e:
+                    # Network or other error - use fallback
+                    LOGGER.error("chat_endpoint: error fetching profile, using fallback: %s", e)
+                    profile = AgentProfile(
+                        agent_id=request.agentId,
+                        agent_name=request.agentId,
+                        location="",
+                        listings=[]
+                    )
+            
+            # Process the chat message
+            response_content, input_tokens, output_tokens = process_chat_message(
+                profile=profile,
+                question=request.message,
+                session_id=session_id,
+                create_llm=create_llm,
+                process_fetch_data=process_fetch_data
+            )
+            
+            # Create response message
+            message = ChatMessage(
+                id=str(uuid7()),
+                role="assistant",
+                content=response_content,
+                createdAt=datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+            )
+            
+            # Create token usage response
+            token_usage = TokenUsageResponse(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=input_tokens + output_tokens
+            )
+            
+            return ChatResponse(message=message, tokenUsage=token_usage)
+            
+        except Exception as e:
+            LOGGER.error("chat_endpoint: error processing request: %s", e, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+    return chat_endpoint
+
+
+def run_server(model_name: str, logger_names: list[str]):
+    """
+    Run the FastAPI server with model-specific configuration.
+    
+    Args:
+        model_name: Name of the model for logging
+        logger_names: List of logger names to suppress
+    """
+    LOGGER.debug("run_server: starting application setup")
+    
+    # Suppress LangChain log output
+    for logger_name in logger_names:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
+    
+    import uvicorn
+    LOGGER.info("Starting AI Agent (model: %s) API server on %s:%d", model_name, Config.SERVER_HOST, Config.SERVER_PORT)
+    uvicorn.run(app, host=Config.SERVER_HOST, port=Config.SERVER_PORT)
+

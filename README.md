@@ -235,6 +235,7 @@ This will:
 │   ├── profile      # Profile service binary
 │   ├── search       # Search service binary
 │   ├── profile.db   # SQLite database
+│   ├── agent.py
 │   ├── ai_agent_local.py
 │   ├── ai_agent_external.py
 │   ├── config.py

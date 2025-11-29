@@ -8,6 +8,9 @@ in the agent to create the complete prompt template:
 - ANALYSIS_PROMPT: Instructions for analysis mode
 """
 
+def get_llm_prompt() -> str:
+    return SYSTEM_PROMPT + "\n\n" + QUERY_PROMPT + "\n\n" + ANALYSIS_PROMPT
+
 SYSTEM_PROMPT = (
     "You are a helpful real estate assistant working with agent {agent_name} in {location}. "
     "Their current listings are: {listings}.\n\n"

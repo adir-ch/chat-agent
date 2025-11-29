@@ -205,6 +205,7 @@ echo "Copying agent files to $LOCATION..."
 AGENT_DIR="$BACKEND_DIR/agent"
 
 # Copy Python files
+cp "$AGENT_DIR/agent.py" "$LOCATION/"
 cp "$AGENT_DIR/ai_agent_local.py" "$LOCATION/"
 cp "$AGENT_DIR/ai_agent_external.py" "$LOCATION/"
 cp "$AGENT_DIR/config.py" "$LOCATION/"
@@ -240,6 +241,7 @@ fi
 echo "  - profile.db (database)"
 echo "  - init-db.sql"
 echo "  - seed.sql"
+echo "  - agent.py"
 echo "  - ai_agent_local.py"
 echo "  - ai_agent_external.py"
 echo "  - config.py"
