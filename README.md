@@ -16,7 +16,7 @@ Local-first assistant for real estate agents. The project consists of a Vite/Rea
 
 - Node.js ≥ 20
 - Go ≥ 1.22
-- Python 3 (for agent service)
+- Python 3.12 (for agent service & LangChain)
 - Ollama with a compatible chat model (e.g. `llama3.1`) running locally
 - Elasticsearch ≥ 8.x
 - Docker (optional for containerised setup)
@@ -237,7 +237,7 @@ This will:
 │   ├── profile.db   # SQLite database
 │   ├── agent.py
 │   ├── ai_agent_local.py
-│   ├── ai_agent_external.py
+│   ├── ai_agent_gpt.py
 │   ├── config.py
 │   ├── config.json
 │   ├── requirements.txt
@@ -539,6 +539,7 @@ See `docker-compose.yml` for a containerised setup that runs the frontend, both 
 
 ## Next steps
 - [ ] Support mobile devices (responsive)
+- [ ] LLM Data streaming 
 - [ ] Conversations load/save 
 - [ ] LLM response feedback from the users (thumb up/down)
 - [ ] Add auth / agent identity flows

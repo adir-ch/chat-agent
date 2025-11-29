@@ -2,7 +2,7 @@
 Shared AI Agent implementation.
 
 This module contains all common code for the AI agent that works with any LLM model.
-Model-specific implementations (ai_agent_local.py, ai_agent_external.py) import from this
+Model-specific implementations (ai_agent_local.py, ai_agent_gpt.py) import from this
 module and provide model-specific LLM creation and configuration.
 """
 import json

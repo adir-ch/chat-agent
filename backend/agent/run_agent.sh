@@ -222,6 +222,6 @@ if [ "$MODEL_NAME" == "gpt" ]; then
     echo ""
     
     # Run GPT agent
-    python ai_agent_external.py
+    python ai_agent_gpt.py
 fi
 
