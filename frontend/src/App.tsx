@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState, useRef } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { ChatInput, type ChatInputHandle } from './components/ChatInput';
 import { ChatMessageList } from './components/ChatMessageList';
 import { AgentSelection } from './components/AgentSelection';
 import { Sidebar } from './components/Sidebar';
-import { sendChatMessage } from './services/api';
+import { sendChatMessage, sendChatMessageStream } from './services/api';
 import type { ChatMessage } from './types';
 
 export default function App() {
@@ -14,12 +14,24 @@ export default function App() {
   const [selectedAgentName, setSelectedAgentName] = useState<string | null>(null);
   const [showSuggestedQuestion, setShowSuggestedQuestion] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [enableStreaming, setEnableStreaming] = useState(false);
   const chatInputRef = useRef<ChatInputHandle>(null);
+  const streamCleanupRef = useRef<(() => void) | null>(null);
 
   const sortedMessages = useMemo(
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [messages]
   );
+
+  // Cleanup stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamCleanupRef.current) {
+        streamCleanupRef.current();
+        streamCleanupRef.current = null;
+      }
+    };
+  }, []);
 
   const handleAgentSelect = useCallback((agentId: string, agentName: string) => {
     setSelectedAgentId(agentId);
@@ -47,6 +59,12 @@ export default function App() {
         return;
       }
 
+      // Clean up any existing stream
+      if (streamCleanupRef.current) {
+        streamCleanupRef.current();
+        streamCleanupRef.current = null;
+      }
+
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -60,33 +78,88 @@ export default function App() {
       // Hide suggested question after sending any message
       setShowSuggestedQuestion(false);
 
-      try {
-        const response = await sendChatMessage({
-          agentId: selectedAgentId,
-          message: content
-        });
-        // Include tokenUsage in the message if available
+      if (enableStreaming) {
+        // Streaming mode
+        const assistantMessageId = crypto.randomUUID();
         const assistantMessage: ChatMessage = {
-          ...response.message,
-          tokenUsage: response.tokenUsage
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          createdAt: new Date().toISOString()
         };
         setMessages((prev) => [...prev, assistantMessage]);
-        // Focus input after receiving response
-        setTimeout(() => {
-          chatInputRef.current?.focus();
-        }, 100);
-      } catch (err) {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        // Focus input even on error
-        setTimeout(() => {
-          chatInputRef.current?.focus();
-        }, 100);
-      } finally {
-        setLoading(false);
+
+        const cleanup = sendChatMessageStream(
+          {
+            agentId: selectedAgentId,
+            message: content
+          },
+          {
+            onChunk: (chunk: string) => {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: msg.content + chunk }
+                    : msg
+                )
+              );
+            },
+            onComplete: (tokenUsage) => {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, tokenUsage }
+                    : msg
+                )
+              );
+              setLoading(false);
+              streamCleanupRef.current = null;
+              setTimeout(() => {
+                chatInputRef.current?.focus();
+              }, 100);
+            },
+            onError: (err) => {
+              console.error(err);
+              setError(err.message);
+              setLoading(false);
+              streamCleanupRef.current = null;
+              setTimeout(() => {
+                chatInputRef.current?.focus();
+              }, 100);
+            }
+          }
+        );
+        streamCleanupRef.current = cleanup;
+      } else {
+        // Non-streaming mode (existing behavior)
+        try {
+          const response = await sendChatMessage({
+            agentId: selectedAgentId,
+            message: content
+          });
+          // Include tokenUsage in the message if available
+          const assistantMessage: ChatMessage = {
+            ...response.message,
+            tokenUsage: response.tokenUsage
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+          // Focus input after receiving response
+          setTimeout(() => {
+            chatInputRef.current?.focus();
+          }, 100);
+        } catch (err) {
+          console.error(err);
+          setError(err instanceof Error ? err.message : 'Unknown error');
+          // Focus input even on error
+          setTimeout(() => {
+            chatInputRef.current?.focus();
+          }, 100);
+        } finally {
+          setLoading(false);
+        }
       }
     },
-    [selectedAgentId]
+    [selectedAgentId, enableStreaming]
   );
 
   return (
@@ -141,13 +214,37 @@ export default function App() {
                 {messages.length > 0 ? (
                   <>
                     <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
-                    <div className="flex-shrink-0 border-t border-zinc-800/60">
+                    <div className="flex-shrink-0 border-t border-zinc-800/60 flex flex-col">
+                      {/* Streaming Toggle */}
+                      <div className="px-3 md:px-6 py-2 flex items-center justify-end gap-2">
+                        <label className="flex items-center gap-2 text-xs md:text-sm text-zinc-400 cursor-pointer hover:text-zinc-300 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={enableStreaming}
+                            onChange={(e) => setEnableStreaming(e.target.checked)}
+                            className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-purple-500 focus:ring-2 cursor-pointer"
+                          />
+                          <span>Enable Streaming</span>
+                        </label>
+                      </div>
                       <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
                     </div>
                   </>
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center px-3 md:px-6 py-4 md:py-6">
                     <div className="w-[90%] flex flex-col items-center gap-2">
+                      {/* Streaming Toggle */}
+                      <div className="w-full flex items-center justify-end gap-2 mb-2">
+                        <label className="flex items-center gap-2 text-xs md:text-sm text-zinc-400 cursor-pointer hover:text-zinc-300 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={enableStreaming}
+                            onChange={(e) => setEnableStreaming(e.target.checked)}
+                            className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-purple-500 focus:ring-2 cursor-pointer"
+                          />
+                          <span>Enable Streaming</span>
+                        </label>
+                      </div>
                       <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
                       {showSuggestedQuestion && !isLoading && (
                         <div className="w-full flex flex-wrap justify-center gap-2">

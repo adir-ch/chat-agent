@@ -294,6 +294,10 @@ class Config:
     SERVER_HOST = _get_config_value("server_host", _json_config, "SERVER_HOST", "0.0.0.0")
     SERVER_PORT = int(_get_config_value("server_port", _json_config, "SERVER_PORT", 8070))
     
+    # Streaming configuration
+    _enable_streaming = _get_config_value("enable_streaming", _json_config, "ENABLE_STREAMING", False)
+    ENABLE_STREAMING = str(_enable_streaming).lower() == "true" if isinstance(_enable_streaming, str) else bool(_enable_streaming)
+    
     # CORS configuration
     _cors_origins_value = _get_config_value("cors_origins", _json_config, "CORS_ORIGINS", ["http://localhost:5173", "http://localhost:3000"])
     if isinstance(_cors_origins_value, list):

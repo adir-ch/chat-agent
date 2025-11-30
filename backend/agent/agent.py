@@ -19,6 +19,7 @@ except ImportError:
     from uuid import uuid4 as uuid7
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableWithMessageHistory
@@ -193,7 +194,7 @@ def create_agent(
 
 
 # Import chat module after create_agent is defined to avoid circular dependency
-from chat import process_chat_message
+from chat import process_chat_message, process_chat_message_stream
 
 
 # ----------------------------------------------------------
@@ -293,6 +294,121 @@ def setup_chat_endpoint(
             raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
     return chat_endpoint
+
+
+def setup_streaming_endpoint(
+    create_llm: Callable,
+    process_fetch_data: Optional[Callable[[str, str], str]] = None
+):
+    """
+    Setup the /chat/stream endpoint with model-specific functions for streaming.
+    
+    Args:
+        create_llm: Function that creates and returns an LLM instance
+        process_fetch_data: Optional function to process fetched data
+    """
+    @app.post("/chat/stream")
+    async def chat_stream_endpoint(request: ChatRequest):
+        """
+        Streaming chat endpoint that processes messages through the AI agent and streams tokens.
+        Returns Server-Sent Events (SSE) format.
+        """
+        async def generate_stream():
+            try:
+                # Use agentId as session_id for conversation history
+                session_id = request.agentId
+                
+                # Check if streaming is enabled in config
+                if not Config.ENABLE_STREAMING:
+                    error_data = {"error": "Streaming is disabled in configuration"}
+                    yield f"data: {json.dumps(error_data)}\n\n"
+                    return
+                
+                LOGGER.info("chat_stream_endpoint: processing streaming message for agentId='%s', session_id='%s'", request.agentId, session_id)
+                
+                # Fetch or get cached profile for this session
+                profile = None
+                if session_id in agent_sessions:
+                    # Profile already cached in session
+                    _, _, profile, _ = agent_sessions[session_id]
+                    LOGGER.debug("chat_stream_endpoint: using cached profile for session_id='%s'", session_id)
+                else:
+                    # Fetch profile from profile service
+                    try:
+                        profile = fetch_agent_profile(request.agentId)
+                    except ValueError as e:
+                        # Profile not found (404) - use fallback
+                        LOGGER.warning("chat_stream_endpoint: profile not found, using fallback: %s", e)
+                        profile = AgentProfile(
+                            agent_id=request.agentId,
+                            agent_name=request.agentId,
+                            location="",
+                            listings=[]
+                        )
+                    except Exception as e:
+                        # Network or other error - use fallback
+                        LOGGER.error("chat_stream_endpoint: error fetching profile, using fallback: %s", e)
+                        profile = AgentProfile(
+                            agent_id=request.agentId,
+                            agent_name=request.agentId,
+                            location="",
+                            listings=[]
+                        )
+                
+                # Create message ID for this response
+                message_id = str(uuid7())
+                message_created_at = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+                
+                # Process the chat message with streaming
+                final_input_tokens = 0
+                final_output_tokens = 0
+                
+                async for token_chunk, input_tokens, output_tokens in process_chat_message_stream(
+                    profile=profile,
+                    question=request.message,
+                    session_id=session_id,
+                    create_llm=create_llm,
+                    process_fetch_data=process_fetch_data
+                ):
+                    # Update final token counts (last chunk will have the totals)
+                    if input_tokens > 0 or output_tokens > 0:
+                        final_input_tokens = input_tokens
+                        final_output_tokens = output_tokens
+                    
+                    # Send token chunk as SSE
+                    if token_chunk:
+                        # Escape newlines for SSE format
+                        escaped_chunk = token_chunk.replace('\n', '\\n').replace('\r', '\\r')
+                        yield f"data: {escaped_chunk}\n\n"
+                
+                # Send final message with token usage
+                final_data = {
+                    "messageId": message_id,
+                    "createdAt": message_created_at,
+                    "tokenUsage": {
+                        "input_tokens": final_input_tokens,
+                        "output_tokens": final_output_tokens,
+                        "total_tokens": final_input_tokens + final_output_tokens
+                    }
+                }
+                yield f"data: {json.dumps(final_data)}\n\n"
+                
+            except Exception as e:
+                LOGGER.error("chat_stream_endpoint: error processing request: %s", e, exc_info=True)
+                error_data = {"error": str(e)}
+                yield f"data: {json.dumps(error_data)}\n\n"
+        
+        return StreamingResponse(
+            generate_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable buffering for nginx
+            }
+        )
+    
+    return chat_stream_endpoint
 
 
 def run_server(model_name: str, logger_names: list[str]):

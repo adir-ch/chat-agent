@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from agent import (
     app,
     setup_chat_endpoint,
+    setup_streaming_endpoint,
     run_server
 )
 from utils import mask_sensitive_data, LOGGER
@@ -56,8 +57,11 @@ def create_llm():
     if base_url:
         llm_kwargs["base_url"] = base_url
     
+    # Always enable streaming capability - invoke() will still wait for complete response
+    # but astream() will stream tokens when used for streaming endpoints
+    llm_kwargs["streaming"] = True
     llm = ChatOpenAI(**llm_kwargs)
-    LOGGER.debug("create_llm: ChatOpenAI initialized successfully")
+    LOGGER.debug("create_llm: ChatOpenAI initialized with streaming capability")
     return llm
 
 
@@ -150,6 +154,12 @@ def process_fetch_data(data: str, query: str) -> str:
 
 # Setup the chat endpoint with GPT-specific functions
 setup_chat_endpoint(
+    create_llm=create_llm,
+    process_fetch_data=process_fetch_data
+)
+
+# Setup the streaming chat endpoint with GPT-specific functions
+setup_streaming_endpoint(
     create_llm=create_llm,
     process_fetch_data=process_fetch_data
 )

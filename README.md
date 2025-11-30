@@ -134,6 +134,7 @@ To see available model types:
 - `SERVER_HOST` (default `0.0.0.0`) - The host address to bind the server to
 - `SERVER_PORT` (default `8070`) - The port number to run the server on
 - `CORS_ORIGINS` (default `http://localhost:5173,http://localhost:3000`) - Comma-separated list of allowed CORS origins
+- `ENABLE_STREAMING` (default `false`) - Enable real-time token streaming capability (can override config.json)
 - `OPENAI_API_KEY` (required for OpenAI model) - Must be set via environment variable
 - `LANGCHAIN_API_KEY` (optional, for LangSmith tracing) - Must be set via environment variable
 
@@ -146,6 +147,26 @@ To view available options:
 ```
 
 Configuration values can be overridden via environment variables. API keys (`LANGCHAIN_API_KEY`, `OPENAI_API_KEY`) must be set via environment variables only.
+
+**Streaming Configuration:**
+The agent service supports real-time token streaming. Streaming can be controlled in two ways:
+
+1. **Backend Configuration** (`config.json`):
+   - Set `enable_streaming` to `true` or `false` in `config.json` under `agent_config`
+   - Default: `false` (streaming disabled)
+   - Can be overridden via `ENABLE_STREAMING` environment variable
+
+2. **Frontend Toggle**:
+   - Users can toggle streaming on/off via a checkbox in the UI
+   - The toggle appears above the chat input area
+   - When enabled, tokens appear incrementally as they're generated (ChatGPT-style)
+   - When disabled, the full response is returned after completion (default behavior)
+
+**Streaming Endpoints:**
+- `/chat` - Non-streaming endpoint (existing behavior, always available)
+- `/chat/stream` - Streaming endpoint (Server-Sent Events format, requires `enable_streaming: true` in config)
+
+**Note:** The frontend toggle only works if streaming is enabled in the backend configuration. If `enable_streaming` is `false` in `config.json`, the streaming endpoint will return an error.
 
 ## Building for Deployment
 
@@ -365,6 +386,7 @@ The agent service uses `config.json` for configuration. To view available option
     "profile_url": "http://localhost:8080",
     "server_host": "0.0.0.0",
     "server_port": 8070,
+    "enable_streaming": false,
     "cors_origins": [
       "http://localhost:5173",
       "http://localhost:3000"
@@ -519,6 +541,9 @@ export OPENAI_BASE_URL=""                             # Custom OpenAI endpoint (
 export USE_EMBEDDINGS="false"                         # Enable embeddings (default: false)
 export EMBEDDING_MODEL="text-embedding-3-small"       # Embedding model (default: text-embedding-3-small)
 export EMBEDDING_TOP_K="5"                            # Top K results (default: 5)
+
+# Streaming configuration
+export ENABLE_STREAMING="false"                       # Enable real-time token streaming (default: false)
 ```
 
 ### Nginx Configuration
@@ -548,6 +573,17 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
+    # Proxy streaming endpoint (if streaming is enabled)
+    location /chat/stream {
+        proxy_pass http://localhost:8070;
+        proxy_http_version 1.1;
+        proxy_set_header Cache-Control no-cache;
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_read_timeout 24h;
+        proxy_set_header Host $host;
+    }
+
     # Proxy profile service (if needed)
     location /api {
         proxy_pass http://localhost:8080;
@@ -561,9 +597,47 @@ server {
 
 See `docker-compose.yml` for a containerised setup that runs the frontend, both Go services, and Elasticsearch together. Update the Ollama endpoint to match your host environment.
 
+## Streaming Feature
+
+The chat agent supports real-time token streaming, allowing users to see responses appear incrementally as they're generated (similar to ChatGPT).
+
+### Backend Configuration
+
+Enable streaming in `config.json`:
+
+```json
+{
+  "agent_config": {
+    "enable_streaming": true,
+    ...
+  }
+}
+```
+
+Or via environment variable:
+```bash
+export ENABLE_STREAMING=true
+```
+
+**Important:** The streaming endpoint (`/chat/stream`) will only work if `enable_streaming` is set to `true` in the backend configuration.
+
+### Frontend Usage
+
+1. **Enable Streaming in Backend**: Set `enable_streaming: true` in `config.json` or via `ENABLE_STREAMING` environment variable
+2. **Toggle in UI**: Use the "Enable Streaming" checkbox above the chat input
+3. **Streaming Mode**: When enabled, tokens appear incrementally as they're generated
+4. **Non-Streaming Mode**: When disabled, the full response appears after completion (default behavior)
+
+### How It Works
+
+- **Non-Streaming** (`/chat` endpoint): Waits for complete response, then returns it all at once
+- **Streaming** (`/chat/stream` endpoint): Uses Server-Sent Events (SSE) to send tokens as they arrive
+- The frontend toggle controls which endpoint is called
+- Token usage is calculated and displayed for both modes
+
 ## Next steps
-- [ ] Support mobile devices (responsive)
-- [ ] LLM Data streaming 
+- [x] Support mobile devices (responsive)
+- [x] LLM Data streaming 
 - [ ] Conversations load/save 
 - [ ] LLM response feedback from the users (thumb up/down)
 - [ ] Add auth / agent identity flows
