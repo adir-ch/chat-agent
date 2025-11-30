@@ -3,7 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage } from '../types';
 import {
-  roleStyles,
+  userRoleStyles,
+  assistantRoleStylesMobile,
+  assistantRoleStylesDesktop,
+  systemRoleStyles,
+  userMessageContainerClasses,
+  assistantMessageContainerClassesMobile,
   messageContainerClasses,
   userMessageTextClasses,
   timestampClasses,
@@ -37,9 +42,27 @@ function ChatMessageItem({ message, agentName }: { message: ChatMessage; agentNa
     ? `, (tokens: in=${message.tokenUsage.input_tokens}, out=${message.tokenUsage.output_tokens}, total=${message.tokenUsage.total_tokens})`
     : '';
   
+  // Determine container and role styles based on message role
+  let containerClasses = '';
+  let roleClasses = '';
+  
+  if (message.role === 'user') {
+    // User messages: Always in bubbles, max 85% width on mobile
+    containerClasses = userMessageContainerClasses;
+    roleClasses = userRoleStyles;
+  } else if (message.role === 'assistant') {
+    // Assistant messages: Full-width on mobile (no bubble), bubble on desktop
+    containerClasses = assistantMessageContainerClassesMobile;
+    roleClasses = `${assistantRoleStylesMobile} ${assistantRoleStylesDesktop}`;
+  } else {
+    // System messages: Always in bubbles
+    containerClasses = messageContainerClasses;
+    roleClasses = systemRoleStyles;
+  }
+  
   return (
     <div
-      className={`${messageContainerClasses} ${roleStyles[message.role]}`}
+      className={`${containerClasses} ${roleClasses}`}
     >
       {message.role === 'assistant' ? (
         <div className={proseClasses}>

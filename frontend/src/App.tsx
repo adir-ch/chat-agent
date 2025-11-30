@@ -138,26 +138,36 @@ export default function App() {
                   });
                   return null;
                 })()}
-                <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
-                <div className="flex-shrink-0 border-t border-zinc-800/60 flex flex-col">
-                  {showSuggestedQuestion && messages.length === 0 && !isLoading && (
-                    <div className="px-3 md:px-6 pt-2 md:pt-3 pb-2 flex flex-wrap justify-center gap-2">
-                      <button
-                        onClick={() => handleSend('Show me properties in my area')}
-                        className="px-4 py-2.5 md:py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs md:text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600 min-h-[44px]"
-                      >
-                        Show me properties in my area
-                      </button>
-                      <button
-                        onClick={() => handleSend('Show me my listings')}
-                        className="px-4 py-2.5 md:py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs md:text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600 min-h-[44px]"
-                      >
-                        Show me my listings
-                      </button>
+                {messages.length > 0 ? (
+                  <>
+                    <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
+                    <div className="flex-shrink-0 border-t border-zinc-800/60">
+                      <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
                     </div>
-                  )}
-                  <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
-                </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center px-3 md:px-6 py-4 md:py-6">
+                    <div className="w-[90%] flex flex-col items-center gap-2">
+                      <ChatInput ref={chatInputRef} onSend={handleSend} disabled={isLoading} />
+                      {showSuggestedQuestion && !isLoading && (
+                        <div className="w-full flex flex-wrap justify-center gap-2">
+                          <button
+                            onClick={() => handleSend('Show me properties in my area')}
+                            className="px-4 py-2.5 md:py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs md:text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600 min-h-[44px]"
+                          >
+                            Show me properties in my area
+                          </button>
+                          <button
+                            onClick={() => handleSend('Show me my listings')}
+                            className="px-4 py-2.5 md:py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs md:text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600 min-h-[44px]"
+                          >
+                            Show me my listings
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

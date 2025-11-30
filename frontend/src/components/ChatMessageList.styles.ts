@@ -1,11 +1,22 @@
 // Styles for ChatMessageList component
 
-export const roleStyles: Record<'user' | 'assistant' | 'system', string> = {
-  user: 'bg-[indigo] border border-zinc-800 ml-auto rounded-tl-xl rounded-tr-sm',
-  assistant: 'bg-zinc-900 border border-zinc-800 mr-auto rounded-tr-xl rounded-tl-sm',
-  system: 'bg-zinc-800 border border-zinc-700 mx-auto text-sm'
-};
+// User messages: Always in bubbles, max 85% width on mobile
+export const userRoleStyles = 'bg-[indigo] border border-zinc-800 ml-auto rounded-tl-xl rounded-tr-sm';
 
+// Assistant messages: Full-width on mobile (no bubble), bubble on desktop
+export const assistantRoleStylesMobile = 'rounded-none shadow-none bg-transparent border-0'; // No bubble styling on mobile
+export const assistantRoleStylesDesktop = 'md:bg-zinc-900 md:border md:border-zinc-800 md:mr-auto md:rounded-tr-xl md:rounded-tl-sm md:shadow-sm';
+
+// System messages: Always in bubbles
+export const systemRoleStyles = 'bg-zinc-800 border border-zinc-700 mx-auto text-sm';
+
+// User message container: Bubble with max 85% width on mobile
+export const userMessageContainerClasses = 'max-w-[85%] md:max-w-[75%] min-w-0 px-3 md:px-4 py-3 rounded-b-xl shadow-sm';
+
+// Assistant message container: Full-width on mobile (breaks out of padding), bubble on desktop
+export const assistantMessageContainerClassesMobile = 'w-full md:w-auto md:max-w-[75%] min-w-0 py-3 md:px-4 md:py-3 md:rounded-b-xl -mx-3 md:mx-0 px-3';
+
+// Legacy container classes (for system messages)
 export const messageContainerClasses = 'max-w-[95%] md:max-w-[75%] min-w-0 px-3 md:px-4 py-3 rounded-b-xl shadow-sm';
 
 export const userMessageTextClasses = 'whitespace-pre-wrap leading-relaxed text-white break-words overflow-x-auto';
@@ -44,7 +55,8 @@ export const markdownStyles = {
   td: 'border border-zinc-700 px-3 py-2 text-zinc-100'
 };
 
-export const scrollContainerClasses = 'flex-1 flex flex-col gap-3 md:gap-4 overflow-y-auto px-3 md:px-6 py-4 md:py-6';
+// Scroll container: Allow overflow-x on mobile for full-width assistant messages
+export const scrollContainerClasses = 'flex-1 flex flex-col gap-3 md:gap-4 overflow-y-auto overflow-x-hidden md:overflow-x-hidden px-3 md:px-6 py-4 md:py-6';
 
 export const loadingClasses = 'mx-auto text-xs md:text-sm text-zinc-500 animate-pulse';
 
