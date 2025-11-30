@@ -141,12 +141,18 @@ export default function App() {
                 <ChatMessageList messages={sortedMessages} isLoading={isLoading} agentName={selectedAgentName} />
                 <div className="flex-shrink-0 border-t border-zinc-800/60 flex flex-col">
                   {showSuggestedQuestion && messages.length === 0 && !isLoading && (
-                    <div className="px-3 md:px-6 pt-2 md:pt-3 pb-2 flex justify-center">
+                    <div className="px-3 md:px-6 pt-2 md:pt-3 pb-2 flex flex-wrap justify-center gap-2">
                       <button
                         onClick={() => handleSend('Show me properties in my area')}
                         className="px-4 py-2.5 md:py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs md:text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600 min-h-[44px]"
                       >
                         Show me properties in my area
+                      </button>
+                      <button
+                        onClick={() => handleSend('Show me my listings')}
+                        className="px-4 py-2.5 md:py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs md:text-sm font-medium transition-colors border border-zinc-700/50 hover:border-zinc-600 min-h-[44px]"
+                      >
+                        Show me my listings
                       </button>
                     </div>
                   )}
